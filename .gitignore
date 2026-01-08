@@ -1,0 +1,51 @@
+# ROS2 build and install directories
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+/tmp/
+
+# Debug files
+.cursor/
+debug.log
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+
+# MQTT debug logs
+/tmp/mqtt_chain_debug_*.log
+
+# Node logs
+/tmp/nav_node.log
+

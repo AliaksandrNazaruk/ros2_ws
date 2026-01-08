@@ -1,0 +1,34 @@
+# Test positions for unit tests
+# Dynamic positions - any number allowed
+
+positions:
+  position_A:
+    x: 1.0
+    y: 2.0
+    theta: 0.0
+    description: "Test Position A"
+  
+  position_B:
+    x: 2.0
+    y: 3.0
+    theta: 1.57
+    description: "Test Position B"
+  
+  position_C:
+    x: 3.0
+    y: 4.0
+    theta: 0.0
+    description: "Test Position C"
+  
+  position_D:
+    x: 4.0
+    y: 5.0
+    theta: -1.57
+    description: "Test Position D"
+  
+  position_E:
+    x: 5.0
+    y: 6.0
+    theta: 3.14
+    description: "Test Position E"
+

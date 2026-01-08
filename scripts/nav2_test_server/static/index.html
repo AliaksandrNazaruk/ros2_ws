@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Nav2 Monitor – Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/static/css/monitoring.css" />
+</head>
+<body>
+
+<header>
+  <h1>Nav2 Testing Server</h1>
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/monitoring">Monitoring</a>
+    <a href="/docs" target="_blank">API Docs</a>
+  </nav>
+</header>
+
+<main>
+  <section class="card">
+    <h2>System Health</h2>
+    <pre id="health">Loading...</pre>
+  </section>
+
+  <section class="card">
+    <h2>Quick Status</h2>
+    <table>
+      <tr><td>ROS2</td><td id="ros2">–</td></tr>
+      <tr><td>MQTT</td><td id="mqtt">–</td></tr>
+      <tr><td>Timestamp</td><td id="timestamp">–</td></tr>
+    </table>
+  </section>
+</main>
+
+<script src="/static/js/dashboard.js"></script>
+</body>
+</html>

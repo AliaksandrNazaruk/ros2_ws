@@ -1,0 +1,27 @@
+symovo_scan_converter:
+  ros__parameters:
+    symovo_endpoint: "https://192.168.1.100"
+    amr_id: 15
+    update_rate: 10.0  # Hz
+    tls_insecure: true
+    frame_id: "laser"
+    
+    # Scanner parameters (adjust based on your Symovo AMR scanner)
+    angle_min: -3.14159  # -180 degrees
+    angle_max: 3.14159   # +180 degrees
+    angle_increment: 0.00872665  # 0.5 degrees
+    range_min: 0.1  # meters
+    range_max: 10.0  # meters
+    scan_time: 0.1  # seconds
+    time_increment: 0.0
+
+symovo_map_loader:
+  ros__parameters:
+    symovo_endpoint: "https://192.168.1.100"
+    amr_id: 15
+    tls_insecure: true
+    map_cache_dir: "/tmp/symovo_maps"
+    auto_load: true
+    check_interval: 5.0  # seconds
+
+
