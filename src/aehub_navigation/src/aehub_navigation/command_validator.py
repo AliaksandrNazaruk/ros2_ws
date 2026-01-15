@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
 
+# Copyright 2026 Boris
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Command Validator
 
@@ -19,7 +33,8 @@ import re
 import sys
 import threading
 import time
-from typing import Optional, Tuple, Dict, Any
+import math
+from typing import Optional, Tuple, Dict
 
 
 class CommandValidator:
@@ -57,7 +72,12 @@ class CommandValidator:
             r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$'
         )
     
-    def validate_command(self, command: dict, position_registry=None) -> Tuple[bool, Optional[str]]:
+    def validate_command(
+        self,
+        command: dict,
+        position_registry=None,
+        expected_robot_id: Optional[str] = None,
+    ) -> Tuple[bool, Optional[str]]:
         """
         Validate navigation command with comprehensive checks.
         
@@ -80,11 +100,31 @@ class CommandValidator:
         if command_size > max_command_size:
             return (False, f'Command too large: {command_size} bytes (max: {max_command_size})')
         
-        # Check for required fields
-        required_fields = ['command_id', 'timestamp', 'target_id', 'priority']
+        # Check for required fields (SPECIFICATION.md Section 3.1 / 3.3 common fields)
+        #
+        # We allow a reserved `target_id="__pose__"` for direct pose mode, but `target_id` is still required.
+        required_fields = ['schema_version', 'robot_id', 'command_id', 'timestamp', 'priority', 'target_id']
         for field in required_fields:
             if field not in command:
                 return (False, f'Missing required field: {field}')
+
+        # schema_version
+        schema_version = command.get('schema_version')
+        if not isinstance(schema_version, str):
+            return (False, f'schema_version must be a string, got {type(schema_version).__name__}')
+        if schema_version != '1.0':
+            return (False, f'Unsupported schema_version: {schema_version} (expected: 1.0)')
+
+        # robot_id
+        robot_id = command.get('robot_id')
+        if not isinstance(robot_id, str):
+            return (False, f'robot_id must be a string, got {type(robot_id).__name__}')
+        if len(robot_id) == 0:
+            return (False, 'robot_id cannot be empty')
+        if len(robot_id) > 128:
+            return (False, f'robot_id too long: {len(robot_id)} characters (max: 128)')
+        if expected_robot_id and robot_id != expected_robot_id:
+            return (False, f'robot_id mismatch: got {robot_id}, expected {expected_robot_id}')
         
         # Validate command_id (UUID v4 format)
         command_id = command.get('command_id', '')
@@ -114,8 +154,10 @@ class CommandValidator:
         if not self._iso8601_pattern.match(timestamp):
             return (False, f'timestamp must be in ISO-8601 format, got: {timestamp[:50]}')
         
-        # Validate target_id
+        # Validate target_id (required)
         target_id = command.get('target_id', '')
+        if target_id is None:
+            return (False, 'target_id cannot be null')
         if not isinstance(target_id, str):
             return (False, f'target_id must be a string, got {type(target_id).__name__}')
         if len(target_id) == 0:
@@ -127,10 +169,59 @@ class CommandValidator:
         if not re.match(r'^[a-zA-Z0-9_]+$', target_id):
             return (False, f'target_id contains invalid characters (only alphanumeric and underscore allowed): {target_id}')
         
-        # Check if target_id exists in registry (if provided)
-        if position_registry is not None:
-            if not position_registry.hasPosition(target_id):
-                return (False, f'Unknown target_id: {target_id}')
+        # Reserved direct pose selector
+        has_xy = ('x' in command) and ('y' in command)
+        if target_id == '__pose__':
+            if not has_xy:
+                return (False, 'target_id="__pose__" requires x and y coordinates')
+        else:
+            if not isinstance(target_id, str):
+                return (False, f'target_id must be a string, got {type(target_id).__name__}')
+            if len(target_id) == 0:
+                return (False, 'target_id cannot be empty')
+            if len(target_id) > 64:  # Reasonable position ID length
+                return (False, f'target_id too long: {len(target_id)} characters (max: 64)')
+            
+            # Check for injection patterns (basic)
+            if not re.match(r'^[a-zA-Z0-9_]+$', target_id):
+                return (False, f'target_id contains invalid characters (only alphanumeric and underscore allowed): {target_id}')
+            
+            # Check if target_id exists in registry (if provided)
+            if position_registry is not None:
+                if not position_registry.hasPosition(target_id):
+                    return (False, f'Unknown target_id: {target_id}')
+        
+        # Validate direct pose (if present)
+        if has_xy:
+            x = command.get('x')
+            y = command.get('y')
+            if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+                return (False, 'x and y must be numbers')
+            if math.isnan(float(x)) or math.isnan(float(y)):
+                return (False, 'x and y must not be NaN')
+            if abs(float(x)) > 1e6 or abs(float(y)) > 1e6:
+                return (False, 'x/y out of bounds (abs > 1e6) - refusing command')
+            
+            # Optional orientation (radians)
+            theta = command.get('theta', command.get('yaw', None))
+            if theta is not None:
+                if not isinstance(theta, (int, float)):
+                    return (False, 'theta/yaw must be a number (radians)')
+                if math.isnan(float(theta)):
+                    return (False, 'theta/yaw must not be NaN')
+                if abs(float(theta)) > 1e9:
+                    return (False, 'theta/yaw out of bounds (abs > 1e9) - refusing command')
+            
+            # Optional frame_id
+            frame_id = command.get('frame_id', None)
+            if frame_id is not None:
+                if not isinstance(frame_id, str):
+                    return (False, f'frame_id must be a string, got {type(frame_id).__name__}')
+                if len(frame_id) == 0 or len(frame_id) > 64:
+                    return (False, 'frame_id must be 1..64 characters')
+                # Basic ROS frame id validation
+                if not re.match(r'^[A-Za-z][A-Za-z0-9_/]*$', frame_id):
+                    return (False, f'frame_id contains invalid characters: {frame_id}')
         
         # Validate priority
         priority = command.get('priority', 'normal')
@@ -142,7 +233,10 @@ class CommandValidator:
             return (False, f'Invalid priority: {priority}. Must be one of: {", ".join(valid_priorities)}')
         
         # Check for unexpected fields (warn but don't fail)
-        allowed_fields = required_fields + ['reason']  # reason is optional for cancel
+        allowed_fields = required_fields + [
+            'x', 'y', 'theta', 'yaw', 'frame_id',
+            'reason',  # reason is optional for cancel
+        ]
         unexpected_fields = [f for f in command.keys() if f not in allowed_fields]
         if unexpected_fields:
             # Note: We don't have logger here, so we just ignore unexpected fields

@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
 
+# Copyright 2026 Boris
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Broker Config Provider
 
@@ -10,10 +24,7 @@ AE.HUB MVP requirement: No local MQTT configuration storage.
 All configuration must come from Config Service (http://localhost:7900).
 """
 
-import rclpy
-from rclpy.node import Node
 import requests
-import json
 from typing import Optional, Callable, Dict, Any
 from dataclasses import dataclass
 from enum import Enum
@@ -292,9 +303,10 @@ class BrokerConfigProvider:
                         # Temporary error - retry
                         if attempt < max_retries - 1:
                             delay = retry_delays[attempt]
-                            self._log("warn", 
+                            self._log(
+                                "warn",
                                 f"Temporary error fetching config: HTTP {response.status_code}. "
-                                f"Retrying in {delay}s (attempt {attempt + 1}/{max_retries})"
+                                f"Retrying in {delay}s (attempt {attempt + 1}/{max_retries})",
                             )
                             time.sleep(delay)
                             continue
@@ -307,9 +319,10 @@ class BrokerConfigProvider:
                 # Temporary error - retry
                 if attempt < max_retries - 1:
                     delay = retry_delays[attempt]
-                    self._log("warn", 
+                    self._log(
+                        "warn",
                         f"Timeout fetching config from {url}. "
-                        f"Retrying in {delay}s (attempt {attempt + 1}/{max_retries})"
+                        f"Retrying in {delay}s (attempt {attempt + 1}/{max_retries})",
                     )
                     time.sleep(delay)
                     continue
@@ -329,13 +342,14 @@ class BrokerConfigProvider:
                     self.state = ConfigState.ERROR
                     return None
                     
-            except requests.exceptions.ConnectionError as e:
+            except requests.exceptions.ConnectionError:
                 # Temporary error - retry (circuit breaker will track failures)
                 if attempt < max_retries - 1:
                     delay = retry_delays[attempt]
-                    self._log("warn", 
+                    self._log(
+                        "warn",
                         f"Cannot connect to Config Service at {url}. "
-                        f"Retrying in {delay}s (attempt {attempt + 1}/{max_retries})"
+                        f"Retrying in {delay}s (attempt {attempt + 1}/{max_retries})",
                     )
                     time.sleep(delay)
                     continue
@@ -348,9 +362,10 @@ class BrokerConfigProvider:
                 # Unexpected error - retry once, then fail (circuit breaker will track failures)
                 if attempt < max_retries - 1:
                     delay = retry_delays[attempt]
-                    self._log("warn", 
+                    self._log(
+                        "warn",
                         f"Unexpected error fetching config: {e}. "
-                        f"Retrying in {delay}s (attempt {attempt + 1}/{max_retries})"
+                        f"Retrying in {delay}s (attempt {attempt + 1}/{max_retries})",
                     )
                     time.sleep(delay)
                     continue

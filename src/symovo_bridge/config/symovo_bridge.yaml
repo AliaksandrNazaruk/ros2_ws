@@ -3,7 +3,9 @@ symovo_scan_converter:
     symovo_endpoint: "https://192.168.1.100"
     amr_id: 15
     update_rate: 10.0  # Hz
-    tls_insecure: true
+    # NOTE: symovo_scan_converter uses tls_verify (True=secure, False=insecure)
+    # We use insecure mode because Symovo often ships with self-signed certs.
+    tls_verify: false
     frame_id: "laser"
     
     # Scanner parameters (adjust based on your Symovo AMR scanner)
@@ -19,7 +21,7 @@ symovo_map_loader:
   ros__parameters:
     symovo_endpoint: "https://192.168.1.100"
     amr_id: 15
-    tls_insecure: true
+    tls_verify: false
     map_cache_dir: "/tmp/symovo_maps"
     auto_load: true
     check_interval: 5.0  # seconds

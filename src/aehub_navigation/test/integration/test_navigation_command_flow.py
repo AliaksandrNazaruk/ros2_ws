@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
 
+# Copyright 2026 Boris
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Integration tests for navigation command flow.
 
@@ -126,6 +140,8 @@ class TestNavigationCommandFlow:
         
         # Verify valid command would be accepted
         valid_command = {
+            'schema_version': '1.0',
+            'robot_id': 'test_robot',
             'command_id': '550e8400-e29b-41d4-a716-446655440000',
             'timestamp': '2025-12-29T12:00:00Z',
             'target_id': 'position_A',
@@ -148,6 +164,8 @@ class TestNavigationCommandFlow:
         
         # Invalid target_id
         invalid_command = {
+            'schema_version': '1.0',
+            'robot_id': 'test_robot',
             'command_id': '550e8400-e29b-41d4-a716-446655440000',
             'timestamp': '2025-12-29T12:00:00Z',
             'target_id': 'position_Z',  # Doesn't exist

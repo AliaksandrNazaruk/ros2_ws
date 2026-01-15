@@ -153,7 +153,7 @@ aroc/robot/{ROBOT_ID}/commands/navigateTo
 **Example Command Payload (JSON):**
 ```json
 {
-  "command_id": "cmd_1234567890",
+  "command_id": "d290f1ee-6c54-4b01-90e6-d701748f0851",
   "timestamp": "2025-11-08T14:30:00Z",
   "target_id": "position_A",
   "priority": "normal"

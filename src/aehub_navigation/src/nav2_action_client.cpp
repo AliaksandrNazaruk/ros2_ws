@@ -1,4 +1,19 @@
+// Copyright 2026 Boris
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "aehub_navigation/nav2_action_client.hpp"
+
 #include <memory>
 
 namespace aehub_navigation
@@ -36,7 +51,7 @@ bool Nav2ActionClient::sendGoal(
   goal_msg.pose = pose;
 
   auto send_goal_options = rclcpp_action::Client<NavigateToPose>::SendGoalOptions();
-  
+
   send_goal_options.feedback_callback = std::bind(
     &Nav2ActionClient::feedbackCallback,
     this,
@@ -57,9 +72,10 @@ bool Nav2ActionClient::sendGoal(
     target_id.c_str());
 
   auto future = action_client_->async_send_goal(goal_msg, send_goal_options);
-  
+
   // Wait for goal to be accepted
-  if (rclcpp::spin_until_future_complete(this->shared_from_this(), future, std::chrono::seconds(5)) !=
+  if (rclcpp::spin_until_future_complete(this->shared_from_this(), future,
+      std::chrono::seconds(5)) !=
     rclcpp::FutureReturnCode::SUCCESS)
   {
     RCLCPP_ERROR(get_logger(), "Failed to send goal");
@@ -83,10 +99,11 @@ bool Nav2ActionClient::cancelCurrentGoal()
   }
 
   RCLCPP_INFO(get_logger(), "Cancelling current goal");
-  
+
   auto future = action_client_->async_cancel_goal(current_goal_handle_);
-  
-  if (rclcpp::spin_until_future_complete(this->shared_from_this(), future, std::chrono::seconds(2)) !=
+
+  if (rclcpp::spin_until_future_complete(this->shared_from_this(), future,
+      std::chrono::seconds(2)) !=
     rclcpp::FutureReturnCode::SUCCESS)
   {
     RCLCPP_WARN(get_logger(), "Failed to cancel goal");
@@ -103,7 +120,8 @@ bool Nav2ActionClient::isNavigating() const
 }
 
 void Nav2ActionClient::setFeedbackCallback(
-  std::function<void(const GoalHandleNav::SharedPtr, const std::shared_ptr<const NavigateToPose::Feedback>)> callback)
+  std::function<void(const GoalHandleNav::SharedPtr,
+  const std::shared_ptr<const NavigateToPose::Feedback>)> callback)
 {
   feedback_callback_ = callback;
 }
@@ -119,7 +137,7 @@ void Nav2ActionClient::feedbackCallback(
   const std::shared_ptr<const NavigateToPose::Feedback> feedback)
 {
   (void)goal_handle;
-  
+
   if (feedback_callback_) {
     feedback_callback_(goal_handle, feedback);
   }
@@ -150,4 +168,3 @@ void Nav2ActionClient::resultCallback(const GoalHandleNav::WrappedResult & resul
 }
 
 }  // namespace aehub_navigation
-

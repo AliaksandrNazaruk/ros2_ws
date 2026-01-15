@@ -132,7 +132,7 @@ mosquitto_pub -h 82.165.177.194 -p 8883 \
   -u bridge_user -P 'G456AH37gbc' \
   -t "aroc/robot/fahrdummy-01/commands/navigateTo" \
   -m '{
-    "command_id": "nav-001",
+    "command_id": "d290f1ee-6c54-4b01-90e6-d701748f0851",
     "target_id": "position_A",
     "priority": "normal",
     "timestamp": "2025-01-27T12:00:00Z"
@@ -146,7 +146,7 @@ mosquitto_pub -h 82.165.177.194 -p 8883 \
   -u bridge_user -P 'G456AH37gbc' \
   -t "aroc/robot/fahrdummy-01/commands/cancel" \
   -m '{
-    "command_id": "cancel-001",
+    "command_id": "18a6b560-3128-4d5c-9a58-ec4e1b7c4f42",
     "task_id": "task-123",
     "timestamp": "2025-01-27T12:00:00Z",
     "reason": "User cancelled"
@@ -160,7 +160,7 @@ mosquitto_pub -h 82.165.177.194 -p 8883 \
   -u bridge_user -P 'G456AH37gbc' \
   -t "aroc/robot/fahrdummy-01/commands/estop" \
   -m '{
-    "command_id": "estop-001",
+    "command_id": "7f4e27a2-3f2a-4e32-9d38-5f6f95b97b35",
     "timestamp": "2025-01-27T12:00:00Z",
     "reason": "Emergency stop button pressed"
   }'
@@ -294,12 +294,10 @@ mosquitto_sub -h 82.165.177.194 -p 8883 \
 ```
 
 **Status Values:**
-- `acknowledged` - Command received
-- `duplicate` - Command already processed
-- `completed` - Task completed successfully
-- `failed` - Task failed
-- `timeout` - Task timed out
-- `rejected` - Command rejected
+- `idle` - Robot is not navigating
+- `navigating` - Robot is executing a navigation goal
+- `arrived` - Robot reached the target successfully
+- `error` - Navigation failed (see `error_code` / `error_message`)
 
 ### Telemetry
 

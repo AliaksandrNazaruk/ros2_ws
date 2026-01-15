@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
 
+# Copyright 2026 Boris
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Integration tests for state machine transitions
 
@@ -21,8 +35,8 @@ class TestStateMachineIntegration:
         manager = NavigationStateManager(logger=None)
         yield manager
     
-    def test_complete_cycle_idle_to_arrived_to_idle(self, state_manager):
-        """Test complete cycle: IDLE → NAVIGATING → ARRIVED → IDLE"""
+    def test_complete_cycle_idle_to_succeeded_to_idle(self, state_manager):
+        """Test complete cycle: IDLE → NAVIGATING → SUCCEEDED → IDLE"""
         callback_states = []
         
         def state_change_callback(state, target_id, error_code, error_message):
@@ -36,18 +50,18 @@ class TestStateMachineIntegration:
         state_manager.onGoalSent(target_id)
         assert state_manager.getState() == NavigationState.NAVIGATING
         
-        # NAVIGATING → ARRIVED
+        # NAVIGATING → SUCCEEDED
         state_manager.onGoalSucceeded(target_id)
-        assert state_manager.getState() == NavigationState.ARRIVED
+        assert state_manager.getState() == NavigationState.SUCCEEDED
         
-        # ARRIVED → IDLE
+        # SUCCEEDED → IDLE
         state_manager.resetToIdle()
         assert state_manager.getState() == NavigationState.IDLE
         
         # Verify all callbacks were called
         assert len(callback_states) == 3
         assert callback_states[0] == NavigationState.NAVIGATING
-        assert callback_states[1] == NavigationState.ARRIVED
+        assert callback_states[1] == NavigationState.SUCCEEDED
         assert callback_states[2] == NavigationState.IDLE
     
     def test_error_cycle_navigating_to_error_to_idle(self, state_manager):
@@ -65,10 +79,10 @@ class TestStateMachineIntegration:
         state_manager.onGoalSent(target_id)
         assert state_manager.getState() == NavigationState.NAVIGATING
         
-        # NAVIGATING → ERROR
-        error_code = "NAV_GOAL_ABORTED"
+        # NAVIGATING → ERROR (validation/system error, not Nav2 ABORTED)
+        error_code = "NAV_INVALID_COMMAND"
         error_message = "Test error"
-        state_manager.onGoalAborted(target_id, error_code, error_message)
+        state_manager.setState(NavigationState.ERROR, target_id=target_id, error_code=error_code, error_message=error_message)
         assert state_manager.getState() == NavigationState.ERROR
         returned_error_code, returned_error_message = state_manager.getError()
         assert returned_error_code == error_code
@@ -108,14 +122,14 @@ class TestStateMachineIntegration:
         assert callback_states[0] == NavigationState.NAVIGATING
         assert callback_states[1] == NavigationState.IDLE
     
-    def test_cancel_from_arrived_state(self, state_manager):
-        """Test cancel from ARRIVED state → IDLE"""
+    def test_cancel_from_succeeded_state(self, state_manager):
+        """Test cancel from SUCCEEDED state → IDLE"""
         target_id = "position_D"
         
-        # Navigate to ARRIVED
+        # Navigate to SUCCEEDED
         state_manager.onGoalSent(target_id)
         state_manager.onGoalSucceeded(target_id)
-        assert state_manager.getState() == NavigationState.ARRIVED
+        assert state_manager.getState() == NavigationState.SUCCEEDED
         
         # Cancel should transition to IDLE
         state_manager.resetToIdle()
@@ -125,9 +139,9 @@ class TestStateMachineIntegration:
         """Test cancel from ERROR state → IDLE"""
         target_id = "position_E"
         
-        # Navigate to ERROR
+        # Navigate to ERROR (system/validation error)
         state_manager.onGoalSent(target_id)
-        state_manager.onGoalAborted(target_id, "NAV_GOAL_ABORTED", "Test error")
+        state_manager.setState(NavigationState.ERROR, target_id=target_id, error_code="NAV_INVALID_COMMAND", error_message="Test error")
         assert state_manager.getState() == NavigationState.ERROR
         
         # Cancel should transition to IDLE
@@ -174,7 +188,7 @@ class TestStateMachineIntegration:
         assert len(transitions) == 5
         assert transitions[0][0] == NavigationState.NAVIGATING
         assert transitions[0][1] == "position_A"
-        assert transitions[1][0] == NavigationState.ARRIVED
+        assert transitions[1][0] == NavigationState.SUCCEEDED
         assert transitions[2][0] == NavigationState.IDLE
         assert transitions[3][0] == NavigationState.NAVIGATING
         assert transitions[3][1] == "position_B"

@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
 
+# Copyright 2026 Boris
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 MQTT → Nav2 Navigation Adapter
 
@@ -13,17 +27,13 @@ Nav2 is a subordinate executor of AE.HUB commands.
 import rclpy
 from rclpy.node import Node
 import json
-import uuid
 import os
-from datetime import datetime
 from typing import Optional
 
 import paho.mqtt.client as mqtt
-import threading
 
 from aehub_navigation.navigation_state_manager import NavigationStateManager, NavigationState
 from aehub_navigation.position_registry import PositionRegistry
-from geometry_msgs.msg import PoseStamped
 from rclpy.action import ActionClient
 from nav2_msgs.action import NavigateToPose
 
@@ -55,7 +65,7 @@ class NavigationCommandHandler(Node):
             try:
                 pkg_dir = get_package_share_directory('aehub_navigation')
                 positions_path = os.path.join(pkg_dir, 'config', 'positions.yaml')
-            except:
+            except Exception:
                 # Fallback
                 positions_path = self.positions_file
         
@@ -133,7 +143,6 @@ class NavigationCommandHandler(Node):
     
     def result_callback(self, future):
         """Handle result from Nav2"""
-        result = future.result().result
         status = future.result().status
         
         if status == 4:  # SUCCEEDED

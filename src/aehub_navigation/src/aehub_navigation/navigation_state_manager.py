@@ -1,10 +1,24 @@
 #!/usr/bin/env python3
 
+# Copyright 2026 Boris
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Navigation State Manager
 
 Manages navigation state based on Nav2 Action lifecycle.
-States: idle, navigating, arrived, error
+States (SPECIFICATION.md): idle, navigating, paused, error, canceling, succeeded, aborted
 
 AE.HUB MVP requirement: Source of truth is Nav2 Action lifecycle,
 NOT diagnostics, NOT internal Nav2 state machine.
@@ -21,7 +35,10 @@ class NavigationState(Enum):
     """Navigation states"""
     IDLE = "idle"
     NAVIGATING = "navigating"
-    ARRIVED = "arrived"
+    PAUSED = "paused"
+    CANCELING = "canceling"
+    SUCCEEDED = "succeeded"
+    ABORTED = "aborted"
     ERROR = "error"
 
 
@@ -67,8 +84,13 @@ class NavigationStateManager:
         else:
             print(f'[{level.upper()}] {message}')
     
-    def setState(self, state: NavigationState, target_id: str = None, 
-                 error_code: str = None, error_message: str = None):
+    def setState(
+        self,
+        state: NavigationState,
+        target_id: str = None,
+        error_code: str = None,
+        error_message: str = None,
+    ):
         """Set navigation state"""
         with self._state_lock:
             if self.current_state == state:
@@ -80,9 +102,9 @@ class NavigationStateManager:
             self.error_code = error_code
             self.error_message = error_message
         
-        self._log('info',
-            f'State changed: {old_state.value} -> {state.value} '
-            f'[target_id: {target_id}]'
+        self._log(
+            'info',
+            f'State changed: {old_state.value} -> {state.value} [target_id: {target_id}]'
         )
         
         if self.state_change_callback:
@@ -113,14 +135,14 @@ class NavigationStateManager:
     
     def onGoalSucceeded(self, target_id: str):
         """Called when goal succeeded"""
-        self.setState(NavigationState.ARRIVED, target_id=target_id)
+        self.setState(NavigationState.SUCCEEDED, target_id=target_id)
         # Transition to IDLE after a short delay
         # (can be handled by external logic)
     
     def onGoalAborted(self, target_id: str, error_code: str, error_message: str):
         """Called when goal aborted"""
         self.setState(
-            NavigationState.ERROR,
+            NavigationState.ABORTED,
             target_id=target_id,
             error_code=error_code,
             error_message=error_message
@@ -128,7 +150,12 @@ class NavigationStateManager:
     
     def onGoalCanceled(self, target_id: str):
         """Called when goal canceled"""
+        # Cancellation is reflected as a terminal RESULT event; status returns to IDLE.
         self.setState(NavigationState.IDLE, target_id=target_id)
+
+    def onCancelRequested(self, target_id: Optional[str] = None):
+        """Called when a cancel command is accepted and cancel is in progress."""
+        self.setState(NavigationState.CANCELING, target_id=target_id)
     
     def resetToIdle(self):
         """Reset to idle state"""

@@ -1,35 +1,42 @@
 # Position Registry
 # Dynamic positions for navigation
 # Positions can be added, removed, and modified at runtime
+# NOTE: Map size is 2.5m x 2.5m, so coordinates must be within 0.0-2.5m range
 
 positions:
   position_A:
-    x: 1.2
-    y: 3.4
+    x: 0.5
+    y: 0.5
     theta: 0.0
-    description: "Position A"
+    description: "Position A - near origin"
   
   position_B:
-    x: 2.3
-    y: 4.5
+    x: 1.0
+    y: 1.0
     theta: 1.57
-    description: "Position B"
+    description: "Position B - center area"
   
   position_C:
-    x: 3.4
-    y: 5.6
+    x: 1.5
+    y: 1.5
     theta: 0.0
-    description: "Position C"
+    description: "Position C - upper right"
   
   position_D:
-    x: 4.5
-    y: 6.7
+    x: 2.0
+    y: 0.5
     theta: -1.57
-    description: "Position D"
+    description: "Position D - right side"
   
   position_E:
-    x: 5.6
-    y: 7.8
+    x: 0.5
+    y: 2.0
     theta: 0.0
-    description: "Position E"
+    description: "Position E - top side"
+  
+  test_position:
+    x: 0.51
+    y: -0.24
+    theta: -0.418879  # -24 degrees in radians
+    description: "Test position - x:0.51, y:-0.24, theta:-24°"
 

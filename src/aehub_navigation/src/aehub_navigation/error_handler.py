@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
 
+# Copyright 2026 Boris
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Navigation Error Handler
 
@@ -12,8 +26,6 @@ NOTE: This is a pure Python module, NOT a ROS2 Node.
 """
 
 from typing import Optional, Dict, Any
-from datetime import datetime
-import traceback
 
 
 class NavigationErrorHandler:
@@ -54,6 +66,9 @@ class NavigationErrorHandler:
         
         # MQTT connection errors (Section 5.1)
         'NAV_MQTT_ERROR': 'MQTT connection error',
+
+        # Hardware / robot readiness
+        'NAV_ROBOT_NOT_READY': 'Robot is not ready to drive (manual mode / not drive-ready / charging)',
         
         # Generic errors
         'NAV_UNKNOWN_ERROR': 'Unknown error occurred',
@@ -101,7 +116,12 @@ class NavigationErrorHandler:
         # Publish error to MQTT if publisher is available
         if self._status_publisher:
             self._logger.info(f' [ERROR HANDLER] Publishing error: error_type={error_type}, command_id={command_id}')
-            self.publish_error(error_type, error_message, command_id)
+            target_id = None
+            try:
+                target_id = context.get('target_id') if isinstance(context, dict) else None
+            except Exception:
+                target_id = None
+            self.publish_error(error_type, error_message, command_id, target_id=target_id)
         else:
             self._logger.warn(f'  [ERROR HANDLER] Status publisher not available, cannot publish error: error_type={error_type}')
     
@@ -158,7 +178,8 @@ class NavigationErrorHandler:
         self,
         error_code: str,
         error_message: str,
-        command_id: Optional[str] = None
+        command_id: Optional[str] = None,
+        target_id: Optional[str] = None,
     ):
         """
         Publish error to MQTT via status publisher.
@@ -175,14 +196,18 @@ class NavigationErrorHandler:
             from aehub_navigation.navigation_state_manager import NavigationState
             # Try also to publish command result event if available
             try:
-                from aehub_navigation.mqtt_command_event_publisher import MQTTCommandEventPublisher  # noqa: F401
                 if hasattr(self._status_publisher, 'mqtt_manager') and hasattr(self._status_publisher, 'robot_id'):
                     from aehub_navigation.mqtt_command_event_publisher import MQTTCommandEventPublisher
                     event_pub = MQTTCommandEventPublisher()
                     event_pub.set_mqtt_manager(self._status_publisher.mqtt_manager)
                     event_pub.set_robot_id(self._status_publisher.robot_id)
-                    event_pub.publish_result(command_id or 'unknown', None, result_type='error',
-                                             error_code=error_code, error_message=error_message)
+                    event_pub.publish_result(
+                        command_id or 'unknown',
+                        target_id,
+                        result_type='error',
+                        error_code=error_code,
+                        error_message=error_message,
+                    )
             except Exception:
                 pass
             

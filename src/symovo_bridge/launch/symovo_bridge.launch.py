@@ -18,6 +18,7 @@ def generate_launch_description():
     symovo_endpoint = LaunchConfiguration('symovo_endpoint')
     amr_id = LaunchConfiguration('amr_id')
     tls_insecure = LaunchConfiguration('tls_insecure')
+    tls_verify = LaunchConfiguration('tls_verify')
     use_scan_converter = LaunchConfiguration('use_scan_converter')
     use_map_loader = LaunchConfiguration('use_map_loader')
     params_file = LaunchConfiguration('params_file')
@@ -39,6 +40,12 @@ def generate_launch_description():
         'tls_insecure',
         default_value='true',
         description='Disable TLS certificate validation'
+    )
+
+    declare_tls_verify = DeclareLaunchArgument(
+        'tls_verify',
+        default_value='false',
+        description='Verify TLS certificate (overrides tls_insecure when explicitly set)'
     )
     
     declare_use_scan_converter = DeclareLaunchArgument(
@@ -65,7 +72,15 @@ def generate_launch_description():
         package='symovo_bridge',
         executable='symovo_scan_converter.py',
         name='symovo_scan_converter',
-        parameters=[params_file],
+        # params_file provides defaults; explicit overrides allow launch-time control
+        parameters=[
+            params_file,
+            {
+                'symovo_endpoint': symovo_endpoint,
+                'amr_id': amr_id,
+                'tls_verify': tls_verify,
+            }
+        ],
         condition=IfCondition(use_scan_converter),
         output='screen'
     )
@@ -76,6 +91,7 @@ def generate_launch_description():
     ld.add_action(declare_symovo_endpoint)
     ld.add_action(declare_amr_id)
     ld.add_action(declare_tls_insecure)
+    ld.add_action(declare_tls_verify)
     ld.add_action(declare_use_scan_converter)
     ld.add_action(declare_params_file)
     

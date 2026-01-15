@@ -4,7 +4,7 @@
 Symovo Scan Converter Node
 
 Converts PNG laser scan from Symovo API to ROS2 sensor_msgs/LaserScan.
-Periodically requests /v0/amr/{id}/scan.png and publishes on /scan topic.
+Periodically requests /v0/agv/{id}/scan.png and publishes on /scan topic.
 
 ⚠️  IMPORTANT DISCLAIMER (AE.HUB MVP Requirement):
 This converter uses a PLACEHOLDER implementation for PNG→LaserScan conversion.
@@ -134,7 +134,10 @@ class SymovoScanConverter(Node):
                 return
             
             # Request scan PNG
-            url = f'{self.endpoint}/v0/amr/{self.amr_id}/scan.png'
+            # Symovo API (matches base_controller endpoint family):
+            # - status/pose: /v0/agv/{id}
+            # - scan image: /v0/agv/{id}/scan.png
+            url = f'{self.endpoint}/v0/agv/{self.amr_id}/scan.png'
             
             # Validate URL format
             if not url.startswith(('http://', 'https://')):
@@ -142,7 +145,7 @@ class SymovoScanConverter(Node):
                 return
             
             try:
-                response = self.session.get(url, timeout=2.0)
+                response = self.session.get(url, timeout=5.0)
             except requests.exceptions.Timeout:
                 self.get_logger().warn(f'Timeout requesting scan from {url}')
                 return
@@ -150,7 +153,8 @@ class SymovoScanConverter(Node):
                 self.get_logger().warn(f'Connection error requesting scan: {e}')
                 return
             except requests.exceptions.RequestException as e:
-                self.get_logger().error(f'Request error: {e}', exc_info=True)
+                # rclpy logger doesn't support exc_info kwarg; log message only
+                self.get_logger().error(f'Request error: {e}')
                 return
             
             # Validate response
@@ -193,7 +197,7 @@ class SymovoScanConverter(Node):
                 return
             
             # Decode PNG image
-            # Reference: OpenAPI spec endpoint /v0/amr/{id}/scan.png
+            # Reference: Symovo endpoint /v0/agv/{id}/scan.png
             # The scan is returned as PNG image (see openapi spec line ~2133)
             try:
                 # Validate PNG signature (first 8 bytes should be PNG magic number)
@@ -244,13 +248,13 @@ class SymovoScanConverter(Node):
                     # Continue anyway - may be valid
                     
             except ValueError as e:
-                self.get_logger().error(f'Invalid PNG data format: {e}', exc_info=True)
+                self.get_logger().error(f'Invalid PNG data format: {e}')
                 return
             except MemoryError as e:
                 self.get_logger().error(f'Out of memory decoding PNG: {e}')
                 return
             except Exception as e:
-                self.get_logger().error(f'Unexpected error decoding PNG: {e}', exc_info=True)
+                self.get_logger().error(f'Unexpected error decoding PNG: {e}')
                 return
             
             # Convert PNG to LaserScan with validation
@@ -266,10 +270,10 @@ class SymovoScanConverter(Node):
                 self.scan_pub.publish(scan_msg)
                 
             except Exception as e:
-                self.get_logger().error(f'Error converting/publishing scan: {e}', exc_info=True)
+                self.get_logger().error(f'Error converting/publishing scan: {e}')
             
         except Exception as e:
-            self.get_logger().error(f'Error updating scan: {e}', exc_info=True)
+            self.get_logger().error(f'Error updating scan: {e}')
     
     def _validate_laserscan(self, scan_msg):
         """Validate LaserScan message before publishing"""
@@ -318,7 +322,7 @@ class SymovoScanConverter(Node):
             return True
             
         except Exception as e:
-            self.get_logger().error(f'Error validating LaserScan: {e}', exc_info=True)
+            self.get_logger().error(f'Error validating LaserScan: {e}')
             return False
     
     def png_to_laserscan(self, img):
@@ -329,7 +333,7 @@ class SymovoScanConverter(Node):
         This is a simplified conversion. The actual implementation depends on
         how Symovo encodes the scan data in the PNG image.
         
-        Reference: OpenAPI spec endpoint /v0/amr/{id}/scan.png
+        Reference: Symovo endpoint /v0/agv/{id}/scan.png
         The scan is returned as PNG image, but the exact encoding format is not
         documented in the OpenAPI specification.
         

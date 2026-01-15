@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
 
+# Copyright 2026 Boris
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Unit tests for NavigationStateManager
 
@@ -49,7 +63,7 @@ class TestNavigationStateManager:
         assert callback_called[0][1] == target_id
     
     def test_on_goal_succeeded(self, state_manager):
-        """Test transition NAVIGATING → ARRIVED"""
+        """Test transition NAVIGATING → SUCCEEDED"""
         target_id = "position_A"
         state_manager.onGoalSent(target_id)
         
@@ -61,13 +75,13 @@ class TestNavigationStateManager:
         
         state_manager.onGoalSucceeded(target_id)
         
-        assert state_manager.getState() == NavigationState.ARRIVED
+        assert state_manager.getState() == NavigationState.SUCCEEDED
         assert state_manager.getTargetId() == target_id
         assert len(callback_called) == 1
-        assert callback_called[0][0] == NavigationState.ARRIVED
+        assert callback_called[0][0] == NavigationState.SUCCEEDED
     
     def test_on_goal_aborted(self, state_manager):
-        """Test transition NAVIGATING → ERROR"""
+        """Test transition NAVIGATING → ABORTED"""
         target_id = "position_A"
         state_manager.onGoalSent(target_id)
         
@@ -81,13 +95,13 @@ class TestNavigationStateManager:
         error_message = "Test error"
         state_manager.onGoalAborted(target_id, error_code, error_message)
         
-        assert state_manager.getState() == NavigationState.ERROR
+        assert state_manager.getState() == NavigationState.ABORTED
         assert state_manager.getTargetId() == target_id
         returned_error_code, returned_error_message = state_manager.getError()
         assert returned_error_code == error_code
         assert returned_error_message == error_message
         assert len(callback_called) == 1
-        assert callback_called[0][0] == NavigationState.ERROR
+        assert callback_called[0][0] == NavigationState.ABORTED
         assert callback_called[0][2] == error_code
         assert callback_called[0][3] == error_message
     
@@ -115,8 +129,8 @@ class TestNavigationStateManager:
         state_manager.onGoalSent(target_id)
         state_manager.onGoalSucceeded(target_id)
         
-        # Should be in ARRIVED state
-        assert state_manager.getState() == NavigationState.ARRIVED
+        # Should be in SUCCEEDED state
+        assert state_manager.getState() == NavigationState.SUCCEEDED
         
         callback_called = []
         def state_change_callback(state, target_id, error_code, error_message):
@@ -134,7 +148,8 @@ class TestNavigationStateManager:
         """Test reset to IDLE from ERROR state"""
         target_id = "position_A"
         state_manager.onGoalSent(target_id)
-        state_manager.onGoalAborted(target_id, "NAV_GOAL_ABORTED", "Test error")
+        # ERROR is a distinct state used for validation/system errors (not Nav2 ABORTED)
+        state_manager.setState(NavigationState.ERROR, target_id=target_id, error_code="NAV_INVALID_COMMAND", error_message="Test error")
         
         # Should be in ERROR state
         assert state_manager.getState() == NavigationState.ERROR
@@ -175,18 +190,18 @@ class TestNavigationStateManager:
         state_manager.onGoalSent(target_id)
         assert state_manager.getState() == NavigationState.NAVIGATING
         
-        # NAVIGATING → ARRIVED
+        # NAVIGATING → SUCCEEDED
         state_manager.onGoalSucceeded(target_id)
-        assert state_manager.getState() == NavigationState.ARRIVED
+        assert state_manager.getState() == NavigationState.SUCCEEDED
         
-        # ARRIVED → IDLE
+        # SUCCEEDED → IDLE
         state_manager.resetToIdle()
         assert state_manager.getState() == NavigationState.IDLE
         
         # Verify callbacks were called
         assert len(callback_states) == 3
         assert callback_states[0] == NavigationState.NAVIGATING
-        assert callback_states[1] == NavigationState.ARRIVED
+        assert callback_states[1] == NavigationState.SUCCEEDED
         assert callback_states[2] == NavigationState.IDLE
     
     def test_error_state_preserves_target_id(self, state_manager):
@@ -196,7 +211,7 @@ class TestNavigationStateManager:
         error_message = "Nav2 rejected the goal"
         
         state_manager.onGoalSent(target_id)
-        state_manager.onGoalAborted(target_id, error_code, error_message)
+        state_manager.setState(NavigationState.ERROR, target_id=target_id, error_code=error_code, error_message=error_message)
         
         assert state_manager.getState() == NavigationState.ERROR
         assert state_manager.getTargetId() == target_id

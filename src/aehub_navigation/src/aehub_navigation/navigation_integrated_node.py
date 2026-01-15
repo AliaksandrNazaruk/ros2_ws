@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
 
+# Copyright 2026 Boris
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Integrated Navigation Node
 
@@ -19,15 +33,13 @@ MQTT Configuration:
 
 import rclpy
 from rclpy.node import Node
-from rclpy.action import ActionClient
-from nav2_msgs.action import NavigateToPose
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
 from aehub_navigation.navigation_state_manager import NavigationStateManager, NavigationState
 from aehub_navigation.position_registry import PositionRegistry
 from aehub_navigation.mqtt_status_publisher import MQTTStatusPublisher
 from aehub_navigation.mqtt_command_event_publisher import MQTTCommandEventPublisher
-from aehub_navigation.broker_config_provider import BrokerConfigProvider
+from aehub_navigation.broker_config_provider import BrokerConfig, BrokerConfigProvider
 from aehub_navigation.mqtt_connection_manager import MQTTConnectionManager
 from aehub_navigation.command_validator import CommandValidator
 from aehub_navigation.command_rate_limiter import CommandRateLimiter
@@ -38,26 +50,84 @@ import os
 import math
 import threading
 import time
+import requests
 import socket
 import hashlib
+import fcntl
+import sys
+from urllib.parse import urlparse
 from typing import Optional, Dict, Any
 
 
 class NavigationIntegratedNode(Node):
     def __init__(self):
+        # Check for duplicate instances BEFORE creating the node - CRITICAL: prevent duplicate nodes
+        lock_file_path = '/tmp/navigation_integrated_node.lock'
+        lock_file = None
+        try:
+            # Try to acquire exclusive lock on lock file
+            lock_file = open(lock_file_path, 'w')
+            try:
+                # Try to acquire non-blocking exclusive lock
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                # Lock acquired successfully - write PID to file
+                lock_file.write(str(os.getpid()) + '\n')
+                lock_file.flush()
+                # Keep file open to maintain lock
+                self._lock_file = lock_file
+            except BlockingIOError:
+                # Lock is held by another process - duplicate detected!
+                lock_file.close()
+                error_msg = (
+                    'CRITICAL ERROR: navigation_integrated_node is already running!\n'
+                    'Another instance is holding the lock file. '
+                    'This will cause MQTT topic conflicts and unpredictable behavior.\n'
+                    'Only one instance should be running.\n'
+                    'Please stop the existing instance before starting a new one.\n'
+                    f'Lock file: {lock_file_path}'
+                )
+                print(error_msg, file=sys.stderr)
+                sys.exit(1)
+        except Exception as e:
+            if lock_file:
+                lock_file.close()
+            # If lock file operations fail, try ROS2 graph check as fallback
+            print(f'WARNING: Could not use file lock for duplicate check: {e}', file=sys.stderr)
+            print('Attempting ROS2 graph check as fallback...', file=sys.stderr)
+        
+        # Now create the ROS2 node
         super().__init__('navigation_integrated_node')
         
-        # Check for duplicate instances
+        # Additional check via ROS2 graph (fallback/secondary check)
         try:
+            # Wait a bit for ROS2 graph to stabilize
+            time.sleep(0.5)
+            
             existing_nodes = self.get_node_names()
             duplicate_count = sum(1 for name in existing_nodes if name == 'navigation_integrated_node')
+            
             if duplicate_count > 1:
-                self.get_logger().warn(
-                    f'  WARNING: Multiple navigation_integrated_node instances detected ({duplicate_count}). '
-                    f'This may cause conflicts. Only one instance should be running.'
+                error_msg = (
+                    f'CRITICAL ERROR: Multiple navigation_integrated_node instances detected in ROS2 graph ({duplicate_count}). '
+                    f'This will cause MQTT topic conflicts and unpredictable behavior. '
+                    f'Only one instance should be running. '
+                    f'Please stop all instances and restart with a single launch file.'
                 )
+                self.get_logger().error(error_msg)
+                # Release lock file before exiting
+                if hasattr(self, '_lock_file'):
+                    try:
+                        fcntl.flock(self._lock_file.fileno(), fcntl.LOCK_UN)
+                        self._lock_file.close()
+                    except Exception:
+                        pass
+                # Exit with error to prevent duplicate from running
+                raise RuntimeError(error_msg)
+        except RuntimeError:
+            # Re-raise our intentional error
+            raise
         except Exception as e:
-            self.get_logger().debug(f'Could not check for duplicate instances: {e}')
+            self.get_logger().warn(f'Could not check for duplicate instances via ROS2 graph: {e}. Continuing anyway...')
         
         # Parameters
         # NOTE: mqtt_broker and mqtt_port are DEPRECATED and NOT USED
@@ -69,6 +139,17 @@ class NavigationIntegratedNode(Node):
         self.declare_parameter('config_poll_interval', 5.0)  # seconds
         self.declare_parameter('positions_file', 'config/positions.yaml')
         self.declare_parameter('rate_limit_interval', 0.1)  # seconds
+
+        # Symovo readiness check (reject navigation if robot cannot drive)
+        self.declare_parameter('symovo_endpoint', 'https://192.168.1.100')
+        self.declare_parameter('amr_id', 15)
+        self.declare_parameter('tls_verify', False)
+        self.declare_parameter('symovo_ready_check_enabled', False)  # Default: disabled for testing
+        self.declare_parameter('symovo_ready_check_timeout_s', 3.0)
+        self.declare_parameter('symovo_ready_check_fail_open', False)
+        self.declare_parameter('symovo_auto_enable_drive_mode', False)
+        self.declare_parameter('symovo_client_cert_file', '')
+        self.declare_parameter('symovo_client_key_file', '')
         
         robot_id_param = self.get_parameter('robot_id').value
         auto_unique = self.get_parameter('auto_unique_robot_id').value
@@ -84,69 +165,33 @@ class NavigationIntegratedNode(Node):
         config_poll_interval = self.get_parameter('config_poll_interval').value
         positions_file = self.get_parameter('positions_file').value
         rate_limit_interval = float(self.get_parameter('rate_limit_interval').value)
+
+        # Symovo readiness settings
+        self.symovo_endpoint = str(self.get_parameter('symovo_endpoint').value).rstrip('/')
+        self.symovo_amr_id = int(self.get_parameter('amr_id').value)
+        self.symovo_tls_verify = bool(self.get_parameter('tls_verify').value)
+        self.symovo_ready_check_enabled = bool(self.get_parameter('symovo_ready_check_enabled').value)
+        self.symovo_ready_check_timeout_s = float(self.get_parameter('symovo_ready_check_timeout_s').value)
+        self.symovo_ready_check_fail_open = bool(self.get_parameter('symovo_ready_check_fail_open').value)
+        self.symovo_auto_enable_drive_mode = bool(self.get_parameter('symovo_auto_enable_drive_mode').value)
+        self.symovo_client_cert_file = str(self.get_parameter('symovo_client_cert_file').value)
+        self.symovo_client_key_file = str(self.get_parameter('symovo_client_key_file').value)
         
         self.get_logger().info(f' Initializing NavigationIntegratedNode: robot_id={self.robot_id}')
+        if self.symovo_ready_check_enabled:
+            self.get_logger().info(
+                f' Symovo readiness check enabled: endpoint={self.symovo_endpoint}, '
+                f'amr_id={self.symovo_amr_id}, tls_verify={self.symovo_tls_verify}, '
+                f'fail_open={self.symovo_ready_check_fail_open}, auto_enable_drive_mode={self.symovo_auto_enable_drive_mode}'
+            )
         
-        # #region agent log
-        try:
-            log_data = {
-                'sessionId': 'debug-session',
-                'runId': 'run1',
-                'hypothesisId': 'INIT',
-                'location': 'navigation_integrated_node.py:68',
-                'message': 'NavigationIntegratedNode INIT',
-                'data': {'robot_id': self.robot_id},
-                'timestamp': int(time.time() * 1000)
-            }
-            with open('/home/boris/ros2_ws/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps(log_data) + '\n')
-            self.get_logger().info(f'[DEBUG-INIT] {json.dumps(log_data)}')
-        except Exception as e:
-            self.get_logger().error(f'[DEBUG] Failed to log init: {e}')
-        # #endregion
+        # NOTE: Keep runtime code free of IDE-specific debug logging (e.g. writing into .cursor/).
         
         # Validate API key
         if not config_service_api_key:
             self.get_logger().error(' config_service_api_key is required but not provided')
             raise RuntimeError('config_service_api_key parameter is required')
-    
-    def _generate_unique_robot_id(self, base_robot_id: str) -> str:
-        """
-        Generate unique robot_id for dev environments.
-        
-        Format: {hostname}-{base_robot_id}-{hash_suffix}
-        Example: raspberrypi-robot_001-a3f2b1
-        
-        Args:
-            base_robot_id: Base robot_id from parameter (used as fallback/prefix)
-            
-        Returns:
-            Unique robot_id string
-        """
-        try:
-            # Get hostname
-            hostname = socket.gethostname()
-            # Sanitize hostname (remove invalid chars for MQTT topics)
-            hostname_clean = ''.join(c if c.isalnum() or c in ('-', '_') else '-' for c in hostname).lower()
-            # Limit hostname length
-            hostname_clean = hostname_clean[:20]
-            
-            # Generate short hash suffix from hostname + timestamp + PID
-            hash_input = f"{hostname}{time.time()}{os.getpid()}"
-            hash_suffix = hashlib.md5(hash_input.encode()).hexdigest()[:6]
-            
-            # Combine: hostname-base-suffix
-            unique_id = f"{hostname_clean}-{base_robot_id}-{hash_suffix}"
-            
-            # Ensure it's valid for MQTT topics (alphanumeric, -, _)
-            unique_id = ''.join(c if c.isalnum() or c in ('-', '_') else '-' for c in unique_id)
-            
-            return unique_id
-        except Exception as e:
-            self.get_logger().warn(f'  Failed to generate unique robot_id: {e}, using base: {base_robot_id}')
-            # Fallback: add timestamp to base
-            return f"{base_robot_id}-{int(time.time())}"
-        
+
         # Components
         self.state_manager = NavigationStateManager(logger=self.get_logger())
         self.position_registry = PositionRegistry()
@@ -158,7 +203,7 @@ class NavigationIntegratedNode(Node):
             try:
                 pkg_dir = get_package_share_directory('aehub_navigation')
                 positions_path = os.path.join(pkg_dir, 'config', 'positions.yaml')
-            except:
+            except Exception:
                 positions_path = positions_file
         
         if not self.position_registry.loadFromYAML(positions_path):
@@ -348,6 +393,43 @@ class NavigationIntegratedNode(Node):
         
         self.get_logger().info(' NavigationIntegratedNode initialized successfully')
     
+    def _generate_unique_robot_id(self, base_robot_id: str) -> str:
+        """
+        Generate unique robot_id for dev environments.
+        
+        Format: {hostname}-{base_robot_id}-{hash_suffix}
+        Example: raspberrypi-robot_001-a3f2b1
+        
+        Args:
+            base_robot_id: Base robot_id from parameter (used as fallback/prefix)
+            
+        Returns:
+            Unique robot_id string
+        """
+        try:
+            # Get hostname
+            hostname = socket.gethostname()
+            # Sanitize hostname (remove invalid chars for MQTT topics)
+            hostname_clean = ''.join(c if c.isalnum() or c in ('-', '_') else '-' for c in hostname).lower()
+            # Limit hostname length
+            hostname_clean = hostname_clean[:20]
+            
+            # Generate short hash suffix from hostname + timestamp + PID
+            hash_input = f"{hostname}{time.time()}{os.getpid()}"
+            hash_suffix = hashlib.md5(hash_input.encode()).hexdigest()[:6]
+            
+            # Combine: hostname-base-suffix
+            unique_id = f"{hostname_clean}-{base_robot_id}-{hash_suffix}"
+            
+            # Ensure it's valid for MQTT topics (alphanumeric, -, _)
+            unique_id = ''.join(c if c.isalnum() or c in ('-', '_') else '-' for c in unique_id)
+            
+            return unique_id
+        except Exception as e:
+            self.get_logger().warn(f'  Failed to generate unique robot_id: {e}, using base: {base_robot_id}')
+            # Fallback: add timestamp to base
+            return f"{base_robot_id}-{int(time.time())}"
+    
     def on_mqtt_connect(self, client: Any, userdata: Any, flags: Any, rc: int) -> None:
         """
         MQTT connection callback.
@@ -361,23 +443,7 @@ class NavigationIntegratedNode(Node):
             flags: Connection flags
             rc: Return code (0 = success, non-zero = error)
         """
-        # #region agent log
-        try:
-            log_data = {
-                'sessionId': 'debug-session',
-                'runId': 'run1',
-                'hypothesisId': 'MQTT',
-                'location': 'navigation_integrated_node.py:232',
-                'message': 'on_mqtt_connect callback',
-                'data': {'rc': rc, 'connected': rc == 0},
-                'timestamp': int(time.time() * 1000)
-            }
-            with open('/home/boris/ros2_ws/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps(log_data) + '\n')
-            self.get_logger().info(f'[DEBUG-MQTT-CONNECT] {json.dumps(log_data)}')
-        except Exception as e:
-            self.get_logger().error(f'[DEBUG] Failed to log MQTT connect: {e}')
-        # #endregion
+        # NOTE: IDE debug logging removed (no writes to .cursor/).
         
         self.get_logger().info(f'🔌 on_mqtt_connect callback called: rc={rc}, flags={flags}')
         
@@ -408,12 +474,12 @@ class NavigationIntegratedNode(Node):
             
             with self._mqtt_ready_lock:
                 self._mqtt_ready = True
-                self.get_logger().info(f' MQTT ready flag set to True (in callback)')
+                self.get_logger().info(' MQTT ready flag set to True (in callback)')
             # Log after lock release for clarity
-            self.get_logger().info(f' MQTT is now ready to accept commands')
+            self.get_logger().info(' MQTT is now ready to accept commands')
             
             # Publish current status after connection (one-shot)
-            self.get_logger().debug(f'Publishing initial status after connection...')
+            self.get_logger().debug('Publishing initial status after connection...')
             try:
                 # Get current state and update status publisher before publishing
                 current_state = self.state_manager.getState()
@@ -426,7 +492,7 @@ class NavigationIntegratedNode(Node):
                     current_position=self.current_position
                 )
                 self.status_publisher.publishStatus()
-                self.get_logger().info(f' Initial status published after MQTT connection')
+                self.get_logger().info(' Initial status published after MQTT connection')
             except Exception as e:
                 self.get_logger().error(f' Failed to publish initial status: {e}')
         else:
@@ -442,7 +508,7 @@ class NavigationIntegratedNode(Node):
             self.get_logger().error(f' Failed to connect to MQTT broker: rc={rc} ({error_msg})')
             with self._mqtt_ready_lock:
                 self._mqtt_ready = False
-            self.get_logger().debug(f'MQTT ready flag set to False due to connection failure')
+            self.get_logger().debug('MQTT ready flag set to False due to connection failure')
     
     def on_mqtt_message(self, client: Any, userdata: Any, msg: Any) -> None:
         """
@@ -456,23 +522,7 @@ class NavigationIntegratedNode(Node):
             userdata: User data (unused)
             msg: MQTT message with topic and payload
         """
-        # #region agent log
-        try:
-            log_data = {
-                'sessionId': 'debug-session',
-                'runId': 'run1',
-                'hypothesisId': 'ALL',
-                'location': 'navigation_integrated_node.py:269',
-                'message': 'on_mqtt_message ENTRY',
-                'data': {'topic': msg.topic if msg else 'None', 'payload_length': len(msg.payload) if msg and msg.payload else 0},
-                'timestamp': int(time.time() * 1000)
-            }
-            with open('/home/boris/ros2_ws/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps(log_data) + '\n')
-            self.get_logger().info(f'[DEBUG-MQTT-ENTRY] {json.dumps(log_data)}')
-        except Exception as e:
-            self.get_logger().error(f'[DEBUG] Failed to log MQTT entry: {e}')
-        # #endregion
+        # NOTE: IDE debug logging removed (no writes to .cursor/).
         
         self.get_logger().info(f' Received MQTT message: topic={msg.topic}, payload_size={len(msg.payload)} bytes')
         
@@ -528,35 +578,32 @@ class NavigationIntegratedNode(Node):
             
             # Route message based on topic
             if msg.topic.endswith('/commands/navigateTo'):
-                # #region agent log
-                try:
-                    log_data = {
-                        'sessionId': 'debug-session',
-                        'runId': 'run1',
-                        'hypothesisId': 'ALL',
-                        'location': 'navigation_integrated_node.py:326',
-                        'message': 'Routing to handleNavigationCommand',
-                        'data': {'topic': msg.topic, 'payload_keys': list(payload.keys()) if isinstance(payload, dict) else 'not_dict'},
-                        'timestamp': int(time.time() * 1000)
-                    }
-                    with open('/home/boris/ros2_ws/.cursor/debug.log', 'a') as f:
-                        f.write(json.dumps(log_data) + '\n')
-                    self.get_logger().info(f'[DEBUG-ROUTING] {json.dumps(log_data)}')
-                except Exception as e:
-                    self.get_logger().error(f'[DEBUG] Failed to log routing: {e}')
-                # #endregion
+                # NOTE: IDE debug logging removed (no writes to .cursor/).
                 
                 self.get_logger().info(f'🔄 Routing to handleNavigationCommand: {msg.topic}')
                 # Publish ACK received as early as possible
                 try:
                     cmd_id = payload.get('command_id', 'unknown') if isinstance(payload, dict) else 'unknown'
-                    tgt = payload.get('target_id', 'unknown') if isinstance(payload, dict) else 'unknown'
+                    if isinstance(payload, dict):
+                        tgt = payload.get('target_id')
+                        if not tgt and ('x' in payload and 'y' in payload):
+                            tgt = '__pose__'
+                        if not tgt:
+                            tgt = 'unknown'
+                    else:
+                        tgt = 'unknown'
                     self.command_event_publisher.publish_ack(cmd_id, tgt, ack_type='received')
                 except Exception:
                     pass
                 self.handleNavigationCommand(payload)
             elif msg.topic.endswith('/commands/cancel'):
                 self.get_logger().info(f'🔄 Routing to handleCancelCommand: {msg.topic}')
+                # Publish ACK received as early as possible (SPECIFICATION.md ordering guarantee)
+                try:
+                    cmd_id = payload.get('command_id', 'unknown') if isinstance(payload, dict) else 'unknown'
+                    self.command_event_publisher.publish_ack(cmd_id, None, ack_type='received')
+                except Exception:
+                    pass
                 self.handleCancelCommand(payload)
             else:
                 self.get_logger().warn(f'  Unknown topic: {msg.topic}')
@@ -576,7 +623,136 @@ class NavigationIntegratedNode(Node):
             - is_valid: True if command is valid, False otherwise
             - error_message: Error message if validation failed, None if valid
         """
-        return self.command_validator.validate_command(command, self.position_registry)
+        return self.command_validator.validate_command(command, self.position_registry, expected_robot_id=self.robot_id)
+
+    def _fetch_symovo_agv_item(self) -> tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        """
+        Fetch Symovo /v0/agv list and return the item for the configured AMR.
+
+        Returns:
+            (item, error_details)
+        """
+        url = f"{self.symovo_endpoint}/v0/agv"
+        try:
+            res = requests.get(url, verify=self.symovo_tls_verify, timeout=self.symovo_ready_check_timeout_s)
+            res.raise_for_status()
+            data = res.json()
+            if not isinstance(data, list):
+                return None, {"url": url, "reason": "symovo_invalid_response", "type": type(data).__name__}
+
+            for item in data:
+                if item.get("id") == self.symovo_amr_id:
+                    return item, None
+
+            return None, {"url": url, "reason": "amr_id_not_found", "amr_id": self.symovo_amr_id}
+
+        except Exception as e:
+            return None, {"url": url, "reason": "symovo_unreachable", "error": str(e)}
+
+    def _check_symovo_drive_ready(self) -> tuple[bool, str, Dict[str, Any]]:
+        """
+        Check Symovo state_flags to determine if robot is ready to drive.
+
+        Returns:
+            (ok, reason, details)
+        """
+        item, err = self._fetch_symovo_agv_item()
+        if err is not None:
+            return False, err.get("reason", "symovo_unreachable"), err
+        assert item is not None
+
+        flags = item.get("state_flags") or {}
+        state = item.get("state")
+        drive_ready = bool(flags.get("drive_ready", False))
+        drive_manual = bool(flags.get("drive_manual", False))
+        charging_connector = bool(flags.get("charging_connector", False))
+        safety_cleared = bool(flags.get("safety_cleared", True))
+        robot_paused = bool(flags.get("robot_paused", False))
+        api_port = item.get("api_port")
+
+        details = {
+            "state": state,
+            "drive_ready": drive_ready,
+            "drive_manual": drive_manual,
+            "charging_connector": charging_connector,
+            "safety_cleared": safety_cleared,
+            "robot_paused": robot_paused,
+            "api_port": api_port,
+        }
+
+        if not safety_cleared:
+            return False, "safety_not_cleared", details
+        if robot_paused:
+            return False, "robot_paused", details
+        if drive_manual:
+            return False, "manual_mode", details
+        if charging_connector:
+            return False, "charging_connector", details
+        if not drive_ready:
+            return False, "drive_not_ready", details
+
+        return True, "ok", details
+
+    def _try_enable_symovo_drive_mode(self) -> tuple[bool, str, Dict[str, Any]]:
+        """
+        Try to enable drive_mode / drive_ready via Symovo API.
+
+        Notes:
+        - Symovo privileged API may require a client certificate (mTLS), often exposed on api_port (e.g. 8003).
+        - If client cert is not available, we will not be able to enable drive_mode programmatically.
+
+        Returns:
+            (ok, reason, details)
+        """
+        item, err = self._fetch_symovo_agv_item()
+        if err is not None:
+            return False, err.get("reason", "symovo_unreachable"), err
+        assert item is not None
+
+        api_port = item.get("api_port")
+        parsed = urlparse(self.symovo_endpoint)
+        host = parsed.hostname or parsed.path  # path fallback for endpoints without scheme
+        scheme = parsed.scheme or "https"
+
+        attempts: list[Dict[str, Any]] = []
+
+        # 1) Try the proxy endpoint (some deployments expose it; ours returned 500 previously)
+        try:
+            url1 = f"{self.symovo_endpoint}/v0/agv/{self.symovo_amr_id}/move/drive_mode"
+            r1 = requests.put(
+                url1,
+                json={"enable": True},
+                verify=self.symovo_tls_verify,
+                timeout=self.symovo_ready_check_timeout_s,
+            )
+            attempts.append({"url": url1, "status": r1.status_code, "body": (r1.text or "")[:200]})
+        except Exception as e:
+            attempts.append({"url": f"{self.symovo_endpoint}/v0/agv/{self.symovo_amr_id}/move/drive_mode", "exc": str(e)})
+
+        # 2) Try the documented endpoint on api_port with optional client certificate
+        cert_tuple = None
+        if self.symovo_client_cert_file and self.symovo_client_key_file:
+            cert_tuple = (self.symovo_client_cert_file, self.symovo_client_key_file)
+
+        if api_port:
+            url2 = f"{scheme}://{host}:{int(api_port)}/v0/amr/{self.symovo_amr_id}/move/drive_mode"
+            try:
+                r2 = requests.put(url2, verify=self.symovo_tls_verify, timeout=self.symovo_ready_check_timeout_s, cert=cert_tuple)
+                attempts.append({"url": url2, "status": r2.status_code, "body": (r2.text or "")[:200]})
+            except Exception as e:
+                attempts.append({"url": url2, "exc": str(e)})
+
+        # Re-check after attempts
+        ok, reason, details = self._check_symovo_drive_ready()
+        details = {**details, "drive_mode_attempts": attempts}
+        if ok:
+            return True, "ok", details
+
+        # Special-case: if we saw 401, highlight mTLS requirement
+        for a in attempts:
+            if a.get("status") == 401:
+                return False, "mtls_required", details
+        return False, reason, details
     
     def on_config_changed(self, new_config: 'BrokerConfig') -> None:
         """
@@ -628,25 +804,13 @@ class NavigationIntegratedNode(Node):
             command: Command dictionary with 'command_id', 'target_id', 'timestamp', 'priority'
         """
         command_id = command.get('command_id', 'unknown')
-        target_id = command.get('target_id', 'unknown')
+        target_id = command.get('target_id')
+        if not target_id and ('x' in command and 'y' in command):
+            target_id = '__pose__'
+        if not target_id:
+            target_id = 'unknown'
         
-        # #region agent log
-        try:
-            log_data = {
-                'sessionId': 'debug-session',
-                'runId': 'run1',
-                'hypothesisId': 'ALL',
-                'location': 'navigation_integrated_node.py:477',
-                'message': 'handleNavigationCommand ENTRY',
-                'data': {'command_id': command_id, 'target_id': target_id, 'command_keys': list(command.keys())},
-                'timestamp': int(time.time() * 1000)
-            }
-            with open('/home/boris/ros2_ws/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps(log_data) + '\n')
-            self.get_logger().info(f'[DEBUG-ENTRY] handleNavigationCommand: {json.dumps(log_data)}')
-        except Exception as e:
-            self.get_logger().error(f'[DEBUG] Failed to log entry: {e}')
-        # #endregion
+        # NOTE: IDE debug logging removed (no writes to .cursor/).
         
         self.get_logger().info(f' Starting navigation command processing: command_id={command_id}, target_id={target_id}')
         
@@ -668,18 +832,17 @@ class NavigationIntegratedNode(Node):
                         {'target_id': target_id, 'reason': 'MQTT reconnecting, command rejected. Please retry.'},
                         command_id
                     )
+                    self._schedule_idle_reset(0.5)
                     self.get_logger().info(f' Published rejection status for command: {command_id}')
                 except Exception as e:
                     self.get_logger().error(f' Failed to publish rejection status: {e}')
                 return
             
-            self.get_logger().info(f' MQTT is ready, proceeding with command processing')
+            self.get_logger().info(' MQTT is ready, proceeding with command processing')
             
             # Rate limiting check using CommandRateLimiter
             # Check by global command counter to prevent rapid commands from any source
             # (command_id is always unique UUID, so we use a global key for rate limiting)
-            command_id = command.get('command_id', 'unknown')
-            target_id = command.get('target_id', 'unknown')
             # Use wall-clock time for rate limiting to avoid ROS clock discrepancies
             current_time = time.time()
             
@@ -702,31 +865,16 @@ class NavigationIntegratedNode(Node):
                     {'command_id': command_id, 'target_id': target_id},
                     command_id
                 )
+                self._schedule_idle_reset(0.5)
                 return
             
-            self.get_logger().info(f' [RATE LIMIT] Command allowed, proceeding to validation')
+            self.get_logger().info(' [RATE LIMIT] Command allowed, proceeding to validation')
             
             # Cleanup old entries periodically
             self.rate_limiter.cleanup_old_entries(max_age_seconds=3600, current_time=current_time)
             self.command_validator.cleanup_expired()
             
-            # #region agent log
-            try:
-                log_data = {
-                    'sessionId': 'debug-session',
-                    'runId': 'run1',
-                    'hypothesisId': 'A',
-                    'location': 'navigation_integrated_node.py:516',
-                    'message': 'Command validation start',
-                    'data': {'command_id': command_id, 'target_id': target_id, 'processed_before_validation': command_id in self._processed_command_ids if hasattr(self, '_processed_command_ids') else False},
-                    'timestamp': int(time.time() * 1000)
-                }
-                with open('/home/boris/ros2_ws/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps(log_data) + '\n')
-                self.get_logger().debug(f'[DEBUG] {json.dumps(log_data)}')
-            except Exception as e:
-                self.get_logger().error(f'[DEBUG] Failed to log: {e}')
-            # #endregion
+            # NOTE: IDE debug logging removed (no writes to .cursor/).
             
             # Validate command
             self.get_logger().info(f' [VALIDATION] Validating command: command_id={command_id}, target_id={target_id}')
@@ -734,23 +882,7 @@ class NavigationIntegratedNode(Node):
             
             self.get_logger().info(f' [VALIDATION] Result: is_valid={is_valid}, error_msg={error_msg}')
             
-            # #region agent log
-            try:
-                log_data = {
-                    'sessionId': 'debug-session',
-                    'runId': 'run1',
-                    'hypothesisId': 'A',
-                    'location': 'navigation_integrated_node.py:525',
-                    'message': 'Command validation result',
-                    'data': {'command_id': command_id, 'is_valid': is_valid, 'error_msg': error_msg, 'in_processed_set': command_id in self._processed_command_ids if hasattr(self, '_processed_command_ids') else False},
-                    'timestamp': int(time.time() * 1000)
-                }
-                with open('/home/boris/ros2_ws/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps(log_data) + '\n')
-                self.get_logger().debug(f'[DEBUG] {json.dumps(log_data)}')
-            except Exception as e:
-                self.get_logger().error(f'[DEBUG] Failed to log: {e}')
-            # #endregion
+            # NOTE: IDE debug logging removed (no writes to .cursor/).
             
             if not is_valid:
                 self.get_logger().warn(f'  [VALIDATION] Command validation failed: {error_msg}')
@@ -763,41 +895,68 @@ class NavigationIntegratedNode(Node):
                     {'command_id': command_id, 'target_id': target_id, 'error': error_msg},
                     command_id
                 )
+                self._schedule_idle_reset(0.5)
                 return
             
-            self.get_logger().info(f' [VALIDATION] Command validation passed')
+            self.get_logger().info(' [VALIDATION] Command validation passed')
             
             self.get_logger().info(f' Command validated successfully: command_id={command_id}, target_id={target_id}')
+
+            # Hardware readiness (Symovo): reject navigation when robot cannot drive (manual / not ready / charging)
+            if self.symovo_ready_check_enabled:
+                ok, reason, details = self._check_symovo_drive_ready()
+                if not ok:
+                    # Optional auto-enable drive mode (only if NOT in manual and NOT charging and safety ok)
+                    if self.symovo_auto_enable_drive_mode and reason == "drive_not_ready":
+                        self.get_logger().warn(f' Robot not drive-ready; attempting to enable drive mode: {details}')
+                        en_ok, en_reason, en_details = self._try_enable_symovo_drive_mode()
+                        if en_ok:
+                            self.get_logger().info(' Symovo drive mode enabled; proceeding with navigation')
+                        else:
+                            self.get_logger().warn(f' Failed to enable drive mode: reason={en_reason}, details={en_details}')
+                            reason = en_reason
+                            details = en_details
+
+                    # Fail-open: if enabled, ignore readiness check failures and proceed
+                    if self.symovo_ready_check_fail_open:
+                        self.get_logger().warn(f' Symovo readiness check failed open (ignoring): reason={reason}, details={details}')
+                        # Continue with navigation despite readiness check failure
+                    else:
+                        self.get_logger().warn(f' Robot not ready to drive: reason={reason}, details={details}')
+                        try:
+                            self.command_event_publisher.publish_ack(
+                                command_id, target_id, ack_type='rejected', reason=f'robot_not_ready:{reason}'
+                            )
+                        except Exception:
+                            pass
+                        self.error_handler.handle_error(
+                            'NAV_ROBOT_NOT_READY',
+                            {'reason': reason, **details},
+                            command_id
+                        )
+                        self._schedule_idle_reset(0.5)
+                        return
             
             # Mark command as processed AFTER successful validation
             # This ensures only valid commands are deduplicated
             self.command_validator.mark_as_processed(command_id)
             
             # Store command_id for status correlation (thread-safe)
-            # #region agent log
-            try:
-                with open('/home/boris/ros2_ws/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps({
-                        'sessionId': 'debug-session',
-                        'runId': 'run1',
-                        'hypothesisId': 'B',
-                        'location': 'navigation_integrated_node.py:540',
-                        'message': 'Storing command_id before pose resolution',
-                        'data': {'command_id': command_id, 'target_id': target_id, 'previous_command_id': getattr(self, 'current_command_id', None)},
-                        'timestamp': int(time.time() * 1000)
-                    }) + '\n')
-            except: pass
-            # #endregion
             
             with self._goal_state_lock:
                 self.current_command_id = command_id
             
-            # Resolve target_id → pose with error handling
-            self.get_logger().debug(f' Resolving target_id to pose: target_id={target_id}')
+            # Resolve goal → pose with error handling
+            # Prefer direct x/y/theta if present (supports clients that don't use PositionRegistry)
+            self.get_logger().debug(f' Resolving goal to pose: target_id={target_id}')
             try:
-                pose = self.position_registry.getPosition(target_id)
-                if pose is None:
-                    raise ValueError(f'Position registry returned None for target_id: {target_id}')
+                pose = None
+                if 'x' in command and 'y' in command:
+                    pose = self._pose_from_direct_command(command)
+                else:
+                    pose = self.position_registry.getPosition(target_id)
+                    if pose is None:
+                        raise ValueError(f'Position registry returned None for target_id: {target_id}')
                 
                 self.get_logger().info(
                     f' Position resolved: target_id={target_id}, '
@@ -810,6 +969,7 @@ class NavigationIntegratedNode(Node):
                     {'target_id': target_id, 'error': str(e)},
                     command_id
                 )
+                self._schedule_idle_reset(0.5)
                 return
             
             # Cancel active goal if navigating (thread-safe)
@@ -844,6 +1004,7 @@ class NavigationIntegratedNode(Node):
                     {'target_id': target_id, 'error': str(e)},
                     command_id
                 )
+                self._schedule_idle_reset(0.5)
         
         except Exception as e:
             # Catch-all for any unexpected errors
@@ -859,6 +1020,34 @@ class NavigationIntegratedNode(Node):
                 {'target_id': target_id, 'error': str(e)},
                 command_id
             )
+            self._schedule_idle_reset(0.5)
+
+    def _pose_from_direct_command(self, command: Dict[str, Any]) -> PoseStamped:
+        """
+        Build a PoseStamped directly from MQTT command fields:
+          - x, y required (meters)
+          - theta or yaw optional (radians)
+          - frame_id optional (defaults to 'map')
+        """
+        x = float(command.get('x'))
+        y = float(command.get('y'))
+        theta = command.get('theta', command.get('yaw', 0.0))
+        theta = float(theta) if theta is not None else 0.0
+        frame_id = command.get('frame_id', 'map')
+        if not isinstance(frame_id, str) or not frame_id:
+            frame_id = 'map'
+
+        pose = PoseStamped()
+        pose.header.frame_id = frame_id
+        pose.header.stamp = self.get_clock().now().to_msg()
+        pose.pose.position.x = x
+        pose.pose.position.y = y
+        pose.pose.position.z = 0.0
+        qz = math.sin(theta / 2.0)
+        qw = math.cos(theta / 2.0)
+        pose.pose.orientation.z = qz
+        pose.pose.orientation.w = qw
+        return pose
     
     def handleCancelCommand(self, command: dict) -> None:
         """
@@ -882,17 +1071,43 @@ class NavigationIntegratedNode(Node):
                 self.get_logger().error(f'Invalid cancel command: expected dict, got {type(command)}')
                 return
             
-            required_fields = ['command_id', 'timestamp']
+            required_fields = ['schema_version', 'robot_id', 'command_id', 'timestamp']
             for field in required_fields:
                 if field not in command:
                     self.get_logger().error(
                         f'Invalid cancel command: Missing required field: {field}. '
                         f'Command: {command}'
                     )
+                    try:
+                        cmd_id = command.get('command_id', 'unknown')
+                        self.command_event_publisher.publish_ack(cmd_id, None, ack_type='rejected', reason='validation_failed')
+                    except Exception:
+                        pass
+                    self.error_handler.handle_error(
+                        'NAV_INVALID_COMMAND',
+                        {'target_id': None, 'error': f'Missing required field: {field}'},
+                        command.get('command_id')
+                    )
                     return
             
             command_id = command['command_id']
             reason = command.get('reason', 'user')
+
+            # Strict schema checks
+            if command.get('schema_version') != '1.0' or command.get('robot_id') != self.robot_id:
+                try:
+                    self.command_event_publisher.publish_ack(command_id, None, ack_type='rejected', reason='validation_failed')
+                except Exception:
+                    pass
+                self.error_handler.handle_error(
+                    'NAV_INVALID_COMMAND',
+                    {
+                        'target_id': None,
+                        'error': f'schema_version/robot_id mismatch (schema_version={command.get("schema_version")}, robot_id={command.get("robot_id")})',
+                    },
+                    command_id
+                )
+                return
             
             # Validate reason (optional field)
             if reason not in ['user', 'system', 'emergency']:
@@ -905,21 +1120,43 @@ class NavigationIntegratedNode(Node):
             self.get_logger().info(
                 f'Received cancel command: command_id={command_id}, reason={reason}'
             )
+            # Cancel command accepted (even if idempotent)
+            try:
+                self.command_event_publisher.publish_ack(command_id, None, ack_type='accepted')
+            except Exception:
+                pass
             
             # Cancel active goal if navigating (idempotent)
             try:
                 current_state = self.state_manager.getState()
                 if current_state == NavigationState.NAVIGATING:
                     self.get_logger().info('Cancelling current navigation goal')
+                    try:
+                        self.state_manager.onCancelRequested(target_id=self.current_target_id)
+                    except Exception:
+                        pass
                     self.cancelCurrentGoal()
+                    # Terminal result for the CANCEL command itself (command outcome), not the navigation goal.
+                    try:
+                        self.command_event_publisher.publish_result(command_id, None, result_type='succeeded')
+                    except Exception:
+                        pass
                 elif current_state == NavigationState.IDLE:
                     self.get_logger().debug('Already in IDLE state, cancel is idempotent')
+                    try:
+                        self.command_event_publisher.publish_result(command_id, None, result_type='succeeded')
+                    except Exception:
+                        pass
                 else:
-                    # For any other state (ARRIVED, ERROR), transition to IDLE
+                    # For any other state (SUCCEEDED, ABORTED, ERROR, etc), transition to IDLE
                     self.get_logger().info(
                         f'Transitioning from {current_state.value} to IDLE due to cancel command'
                     )
                     self.state_manager.resetToIdle()
+                    try:
+                        self.command_event_publisher.publish_result(command_id, None, result_type='succeeded')
+                    except Exception:
+                        pass
             except Exception as e:
                 # Log with context for debugging
                 self.error_handler.log_exception(
@@ -975,6 +1212,7 @@ class NavigationIntegratedNode(Node):
                 {'target_id': target_id},
                 command_id
             )
+            self._schedule_idle_reset(0.5)
             return
         
         # Send goal using NavigationActionClient
@@ -988,6 +1226,7 @@ class NavigationIntegratedNode(Node):
                 {'target_id': target_id, 'error': 'Failed to send goal'},
                 command_id
             )
+            self._schedule_idle_reset(0.5)
     
     def cancelCurrentGoal(self) -> None:
         """
@@ -1001,6 +1240,22 @@ class NavigationIntegratedNode(Node):
         else:
             self.get_logger().debug('No active goal to cancel (idempotent)')
     
+    def _schedule_idle_reset(self, delay_s: float) -> None:
+        """Schedule a one-shot transition back to IDLE."""
+        timer_holder = {}
+
+        def _reset_once():
+            try:
+                self.state_manager.resetToIdle()
+            except Exception as e:
+                self.get_logger().warn(f' Failed to reset to IDLE: {e}')
+            finally:
+                timer = timer_holder.get('timer')
+                if timer:
+                    timer.cancel()
+
+        timer_holder['timer'] = self.create_timer(delay_s, _reset_once)
+
     def goal_response_callback(self, future, target_id=None, command_id=None):
         """Handle goal response from NavigationActionClient
         
@@ -1105,7 +1360,9 @@ class NavigationIntegratedNode(Node):
             
             # Get distance remaining with validation
             try:
-                distance_remaining = feedback.distance_remaining.data
+                # Jazzy: NavigateToPose.Feedback.distance_remaining is a float (not std_msgs/Float32)
+                dr = feedback.distance_remaining
+                distance_remaining = float(dr.data) if hasattr(dr, "data") else float(dr)
             except AttributeError as e:
                 self.get_logger().error(f'Feedback missing distance_remaining: {e}')
                 return
@@ -1250,7 +1507,7 @@ class NavigationIntegratedNode(Node):
         Args:
             future: Future containing Nav2 result with status and error information
         """
-        self.get_logger().info(f' Result callback triggered')
+        self.get_logger().info(' Result callback triggered')
         
         # Get target_id once at the beginning (thread-safe)
         with self._goal_state_lock:
@@ -1277,7 +1534,7 @@ class NavigationIntegratedNode(Node):
                         f'Failed to get result: {str(e)}'
                     )
                     self.status_publisher.publishStatus()
-                    self.get_logger().info(f' Published error status: Failed to get result')
+                    self.get_logger().info(' Published error status: Failed to get result')
                 except Exception as pub_error:
                     self.get_logger().error(f' Failed to publish error status: {pub_error}')
                 return
@@ -1295,10 +1552,10 @@ class NavigationIntegratedNode(Node):
                     self.state_manager.onGoalSucceeded(target_id)
                     self.status_publisher.publishStatus()
                     self.get_logger().info(f' Published success status: target_id={target_id}')
-                    # State machine: ARRIVED → IDLE (after short delay for status publication)
+                    # State machine: SUCCEEDED → IDLE (after short delay for status publication)
                     try:
-                        self.create_timer(0.5, lambda: self.state_manager.resetToIdle(), oneshot=True)
-                        self.get_logger().debug(f'Timer created for state reset to IDLE')
+                        self._schedule_idle_reset(0.5)
+                        self.get_logger().debug('Timer created for state reset to IDLE')
                     except Exception as timer_error:
                         self.get_logger().error(f' Failed to create timer: {timer_error}')
                         # Fallback: reset immediately
@@ -1311,9 +1568,10 @@ class NavigationIntegratedNode(Node):
                         self.command_event_publisher.publish_result(self.current_command_id or 'unknown', target_id, result_type='canceled')
                     except Exception:
                         pass
+                    # Cancellation is terminal via RESULT event; status returns to IDLE.
                     self.state_manager.onGoalCanceled(target_id)
                     self.status_publisher.publishStatus()
-                    self.get_logger().info(f' Published cancel status: target_id={target_id}')
+                    self.get_logger().info(f' Published cancel status (idle): target_id={target_id}')
                 else:  # ABORTED or other error status
                     self.get_logger().warn(
                         f' Navigation goal aborted (status={status}) for target_id: {target_id}'
@@ -1393,6 +1651,11 @@ class NavigationIntegratedNode(Node):
                         )
                     self.status_publisher.publishStatus()
                     self.get_logger().info(f' Published abort status: target_id={target_id}, error_code={error_code}, message={error_message}')
+                    # State machine: ABORTED → IDLE (short delay so UI can see aborted)
+                    try:
+                        self._schedule_idle_reset(1.0)
+                    except Exception:
+                        self.state_manager.resetToIdle()
             except Exception as state_error:
                 # Log with full context for debugging
                 self.error_handler.log_exception(
@@ -1438,7 +1701,7 @@ class NavigationIntegratedNode(Node):
             # State machine: ERROR → IDLE (after short delay for status publication)
             # Graceful degradation: If timer creation fails, reset immediately
             try:
-                self.create_timer(1.0, lambda: self.state_manager.resetToIdle(), oneshot=True)
+                self._schedule_idle_reset(1.0)
             except Exception as timer_error:
                 # Timer creation failed (e.g., node shutting down) - log and fallback
                 self.error_handler.log_exception(
@@ -1522,7 +1785,7 @@ class NavigationIntegratedNode(Node):
                 target_id = getattr(self, '_last_cancel_target_id', None)
                 if target_id:
                     self.state_manager.onGoalCanceled(target_id)
-            except:
+            except Exception:
                 pass
     
     def amcl_pose_callback(self, msg: PoseWithCovarianceStamped):
@@ -1625,6 +1888,14 @@ def main(args=None):
         
         # Disconnect MQTT
         node.mqtt_manager.disconnect()
+        
+        # Release lock file
+        if hasattr(node, '_lock_file'):
+            try:
+                fcntl.flock(node._lock_file.fileno(), fcntl.LOCK_UN)
+                node._lock_file.close()
+            except Exception as e:
+                node.get_logger().warn(f'Error releasing lock file: {e}')
         
         node.destroy_node()
         rclpy.shutdown()

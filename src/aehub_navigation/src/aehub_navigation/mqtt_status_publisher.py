@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
 
+# Copyright 2026 Boris
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 MQTT Status Publisher
 
@@ -14,7 +28,6 @@ It uses MQTTConnectionManager provided by NavigationIntegratedNode.
 import json
 from datetime import datetime
 from typing import Optional
-import time
 
 from aehub_navigation.navigation_state_manager import NavigationState
 from aehub_navigation.mqtt_connection_manager import MQTTConnectionManager
@@ -99,24 +112,17 @@ class MQTTStatusPublisher:
                 self.mqtt_manager.logger.debug(f'  Cannot publish status: missing {", ".join(missing)}')
             return
         
-        # #region agent log
-        try:
-            with open('/home/boris/ros2_ws/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps({
-                    'sessionId': 'debug-session',
-                    'runId': 'run1',
-                    'hypothesisId': 'B',
-                    'location': 'mqtt_status_publisher.py:104',
-                    'message': 'Building status payload',
-                    'data': {'command_id': self.current_command_id, 'target_id': self.current_target_id, 'status': self.current_status},
-                    'timestamp': int(time.time() * 1000)
-                }) + '\n')
-        except: pass
-        # #endregion
+        # NOTE: Keep runtime code free of IDE-specific debug logging (e.g. writing into .cursor/).
         
-        # Build payload according to STRICT format (Section 4.1)
+        # Build payload according to SPECIFICATION.md
         # Ensure status is never None - use 'idle' as default if not set
         status_value = self.current_status if self.current_status else 'idle'
+        allowed_status = {"idle", "navigating", "paused", "error", "canceling", "succeeded", "aborted"}
+        if status_value not in allowed_status:
+            # Fail-safe: never publish unknown status values
+            status_value = "error"
+            self.error_code = self.error_code or "NAV_UNKNOWN_ERROR"
+            self.error_message = self.error_message or f"Invalid status value requested: {self.current_status}"
         
         payload = {
             'schema_version': '1.0',

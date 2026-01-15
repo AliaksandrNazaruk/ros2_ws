@@ -240,7 +240,7 @@ As a remote operator, I want to command the robot to autonomously drive to a pre
    ```
    Topic: aroc/robot/fahrdummy-01/commands/navigateTo
    Payload: {
-     "command_id": "cmd_1234567890",
+     "command_id": "d290f1ee-6c54-4b01-90e6-d701748f0851",
      "timestamp": "2025-11-08T14:30:00Z",
      "target_id": "position_A",
      "priority": "normal"

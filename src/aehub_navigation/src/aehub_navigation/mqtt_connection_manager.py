@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
 
+# Copyright 2026 Boris
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 MQTT Connection Manager
 
@@ -168,10 +182,10 @@ class MQTTConnectionManager:
         flags_dict = flags if isinstance(flags, dict) else {}
         self._log("debug", f"Connection flags: session_present={flags_dict.get('session present', False)}, "
                            f"clean_session={not flags_dict.get('session present', False)}")
-        self._log("info", f" Step 1: About to enter try block")
+        self._log("info", " Step 1: About to enter try block")
         
         try:
-            self._log("info", f" Step 2: Inside try block, about to acquire lock")
+            self._log("info", " Step 2: Inside try block, about to acquire lock")
             # Deadlock prevention: Use non-blocking lock first, then timeout-based lock
             # This prevents blocking the MQTT client callback thread indefinitely
             # Timeout ensures we don't wait forever if another thread holds the lock
@@ -184,12 +198,14 @@ class MQTTConnectionManager:
                 try:
                     self._log("info", f" Step 2.1: Lock acquired, checking rc={rc}")
                     if rc == 0:
-                        self._log("info", f" Step 2.2: rc==0, setting is_connected=True")
+                        self._log("info", " Step 2.2: rc==0, setting is_connected=True")
                         self.is_connected = True
+                        self._connected_event.set()
                         self._log("info", f" Successfully connected to MQTT broker: {broker}:{port}")
-                        self._log("debug", f"is_connected flag set to True")
+                        self._log("debug", "is_connected flag set to True")
                     else:
                         self.is_connected = False
+                        self._connected_event.clear()
                         # Map MQTT error codes to human-readable messages
                         error_messages = {
                             1: "Connection refused - incorrect protocol version",
@@ -203,7 +219,7 @@ class MQTTConnectionManager:
                         self._log("error", f"   Broker: {broker}:{port}")
                         self._log("error", f"   TLS: {self.current_config.mqtt_use_tls if self.current_config else 'unknown'}")
                         self._log("error", f"   Username: {'set' if (self.current_config and self.current_config.mqtt_user) else 'not set'}")
-                    self._log("info", f" Step 2.3: Exiting lock block")
+                    self._log("info", " Step 2.3: Exiting lock block")
                 finally:
                     self._lock.release()
             else:
@@ -516,7 +532,7 @@ class MQTTConnectionManager:
             client = self.client
             is_conn = self.is_connected
         if not is_conn or client is None:
-            self._log("warn", f"Cannot publish: not connected to broker")
+            self._log("warn", "Cannot publish: not connected to broker")
             return False
         try:
             info = client.publish(topic, payload, qos)
@@ -528,7 +544,7 @@ class MQTTConnectionManager:
                 pass
             if getattr(info, "rc", mqtt.MQTT_ERR_SUCCESS) == mqtt.MQTT_ERR_SUCCESS:
                 return True
-            self._log("error", f"Failed to publish: {getattr(info,'rc',None)}")
+            self._log("error", f"Failed to publish: {getattr(info, 'rc', None)}")
             return False
         except Exception as e:
             self._log("error", f"Error publishing: {e}")
@@ -578,7 +594,7 @@ class MQTTConnectionManager:
             
             # If backoff disabled, return immediately on failure
             if not self._reconnect_backoff_enabled:
-                self._log("warn", f"Reconnection failed (backoff disabled)")
+                self._log("warn", "Reconnection failed (backoff disabled)")
                 return False
             
             # Calculate next backoff delay
@@ -618,7 +634,7 @@ class MQTTConnectionManager:
                 try:
                     status["client_state"] = self.client._state if hasattr(self.client, '_state') else 'unknown'
                     status["client_id"] = self.client._client_id if hasattr(self.client, '_client_id') else 'unknown'
-                except:
+                except Exception:
                     status["client_state"] = "error_getting_state"
             
             return status
