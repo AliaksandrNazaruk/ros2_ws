@@ -94,7 +94,6 @@ flowchart LR
 - **Client simulator / tools**:
   - `scripts/fake_hub.py`
   - `scripts/send_navigation_command.py`
-- **Tests**: `src/aehub_navigation/test/` (unit + integration)
 ---
 
 ## 1. Канонические контракты (Stable Interfaces)

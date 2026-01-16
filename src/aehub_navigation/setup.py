@@ -27,7 +27,6 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'navigation_command_handler = aehub_navigation.navigation_command_handler:main',
             'mqtt_status_publisher = aehub_navigation.mqtt_status_publisher:main',
             'navigation_integrated_node = aehub_navigation.navigation_integrated_node:main',
         ],
