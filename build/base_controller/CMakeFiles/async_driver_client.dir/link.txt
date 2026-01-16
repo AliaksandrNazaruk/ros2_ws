@@ -1,0 +1,2 @@
+/usr/bin/ar qc libasync_driver_client.a CMakeFiles/async_driver_client.dir/src/async_driver_client.cpp.o
+/usr/bin/ranlib libasync_driver_client.a

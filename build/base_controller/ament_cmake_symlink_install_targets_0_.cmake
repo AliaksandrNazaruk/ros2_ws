@@ -1,0 +1,1 @@
+ament_cmake_symlink_install_targets("TARGET_FILES" "/home/boris/ros2_ws/build/base_controller/libasync_driver_client.a" "/home/boris/ros2_ws/build/base_controller/base_controller_node" "TARGETS" "async_driver_client" "base_controller_node" "DESTINATION" "lib/base_controller")

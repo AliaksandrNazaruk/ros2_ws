@@ -66,6 +66,7 @@ class NavigationActionClient:
         self._current_goal_handle = None
         self._current_target_id = None
         self._current_command_id = None
+        self._cancel_requested = False
         
         # Callbacks (set by caller)
         self._goal_response_callback: Optional[Callable] = None
@@ -172,26 +173,22 @@ class NavigationActionClient:
             if goal_handle is None:
                 self._node.get_logger().debug('No active goal to cancel')
                 return False
+            if self._cancel_requested:
+                # Idempotent: a cancel is already in-flight.
+                return True
             
             try:
                 goal_handle.cancel_goal_async()
                 self._node.get_logger().info(' Cancel request sent to Nav2')
-                
-                # Clear handles immediately to prevent double-cancel
-                self._current_goal_handle = None
-                self._current_target_id = None
-                self._current_command_id = None
-                
+                self._cancel_requested = True
                 return True
                 
             except Exception as e:
                 self._node.get_logger().error(
                     f' Error cancelling goal: {e}'
                 )
-                # Clear state even if cancel fails
-                self._current_goal_handle = None
-                self._current_target_id = None
-                self._current_command_id = None
+                # Keep state; caller may decide what to do.
+                self._cancel_requested = True
                 return False
     
     def is_goal_active(self) -> bool:
@@ -217,6 +214,7 @@ class NavigationActionClient:
             self._current_goal_handle = goal_handle
             self._current_target_id = target_id
             self._current_command_id = command_id
+            self._cancel_requested = False
             
             # Register result callback
             if goal_handle and self._result_callback:
@@ -231,6 +229,11 @@ class NavigationActionClient:
             self._current_goal_handle = None
             self._current_target_id = None
             self._current_command_id = None
+            self._cancel_requested = False
+
+    def is_cancel_requested(self) -> bool:
+        with self._lock:
+            return self._cancel_requested
     
     def get_current_target_id(self) -> Optional[str]:
         """

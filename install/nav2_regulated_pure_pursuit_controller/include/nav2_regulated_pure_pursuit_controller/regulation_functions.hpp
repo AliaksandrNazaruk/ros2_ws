@@ -1,0 +1,1 @@
+/home/boris/ros2_ws/src/navigation2/nav2_regulated_pure_pursuit_controller/include/nav2_regulated_pure_pursuit_controller/regulation_functions.hpp

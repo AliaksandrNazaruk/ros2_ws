@@ -25,6 +25,7 @@ AE.HUB MVP: Ensures consistent error handling across all components.
 NOTE: This is a pure Python module, NOT a ROS2 Node.
 """
 
+import traceback
 from typing import Optional, Dict, Any
 
 
@@ -172,7 +173,8 @@ class NavigationErrorHandler:
         if context:
             log_msg += f' | Context: {context}'
         
-        self._logger.error(log_msg, exc_info=True)
+        # rclpy logger does not support exc_info; include traceback as text.
+        self._logger.error(log_msg + "\n" + traceback.format_exc())
     
     def publish_error(
         self,
@@ -204,7 +206,7 @@ class NavigationErrorHandler:
                     event_pub.publish_result(
                         command_id or 'unknown',
                         target_id,
-                        result_type='error',
+                        result_status='error',
                         error_code=error_code,
                         error_message=error_message,
                     )
@@ -228,10 +230,7 @@ class NavigationErrorHandler:
             )
             
         except Exception as e:
-            self._logger.error(
-                f' Failed to publish error status: {e}',
-                exc_info=True
-            )
+            self._logger.error(f' Failed to publish error status: {e}\n{traceback.format_exc()}')
     
     @staticmethod
     def get_error_code_description(error_code: str) -> str:

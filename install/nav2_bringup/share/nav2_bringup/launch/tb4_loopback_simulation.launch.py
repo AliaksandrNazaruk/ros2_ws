@@ -1,0 +1,1 @@
+/home/boris/ros2_ws/src/navigation2/nav2_bringup/launch/tb4_loopback_simulation.launch.py

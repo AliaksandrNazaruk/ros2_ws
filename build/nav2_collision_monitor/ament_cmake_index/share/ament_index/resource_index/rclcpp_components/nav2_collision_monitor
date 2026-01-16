@@ -1,0 +1,2 @@
+nav2_collision_monitor::CollisionMonitor;lib/libcollision_monitor_core.so
+nav2_collision_monitor::CollisionDetector;lib/libcollision_detector_core.so

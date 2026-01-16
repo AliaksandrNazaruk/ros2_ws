@@ -1,0 +1,11 @@
+/home/boris/ros2_ws/build/base_controller/CMakeFiles/uninstall.dir
+/home/boris/ros2_ws/build/base_controller/CMakeFiles/base_controller_uninstall.dir
+/home/boris/ros2_ws/build/base_controller/CMakeFiles/async_driver_client.dir
+/home/boris/ros2_ws/build/base_controller/CMakeFiles/base_controller_node.dir
+/home/boris/ros2_ws/build/base_controller/CMakeFiles/test.dir
+/home/boris/ros2_ws/build/base_controller/CMakeFiles/edit_cache.dir
+/home/boris/ros2_ws/build/base_controller/CMakeFiles/rebuild_cache.dir
+/home/boris/ros2_ws/build/base_controller/CMakeFiles/list_install_components.dir
+/home/boris/ros2_ws/build/base_controller/CMakeFiles/install.dir
+/home/boris/ros2_ws/build/base_controller/CMakeFiles/install/local.dir
+/home/boris/ros2_ws/build/base_controller/CMakeFiles/install/strip.dir

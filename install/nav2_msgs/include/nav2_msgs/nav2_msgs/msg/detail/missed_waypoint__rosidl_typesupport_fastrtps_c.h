@@ -1,0 +1,1 @@
+/home/boris/ros2_ws/build/nav2_msgs/rosidl_typesupport_fastrtps_c/nav2_msgs/msg/detail/missed_waypoint__rosidl_typesupport_fastrtps_c.h

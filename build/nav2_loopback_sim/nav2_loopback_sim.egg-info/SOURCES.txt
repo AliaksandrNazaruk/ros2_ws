@@ -1,0 +1,14 @@
+package.xml
+setup.cfg
+setup.py
+launch/loopback_simulation.launch.py
+nav2_loopback_sim/loopback_simulator.py
+nav2_loopback_sim/utils.py
+nav2_loopback_sim.egg-info/PKG-INFO
+nav2_loopback_sim.egg-info/SOURCES.txt
+nav2_loopback_sim.egg-info/dependency_links.txt
+nav2_loopback_sim.egg-info/entry_points.txt
+nav2_loopback_sim.egg-info/requires.txt
+nav2_loopback_sim.egg-info/top_level.txt
+nav2_loopback_sim.egg-info/zip-safe
+resource/nav2_loopback_sim
