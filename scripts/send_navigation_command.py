@@ -17,13 +17,17 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from fake_hub import FakeHub
 
 
-CONFIG_SERVICE_URL = "http://localhost:7900"
-API_KEY = "tR-UZ2j2KutE6OYlEGbsx0h5qe071L-gC5kd1hHKfw4"
+CONFIG_SERVICE_URL = os.getenv("CONFIG_SERVICE_URL", "http://localhost:7900")
+API_KEY = os.getenv("CONFIG_SERVICE_API_KEY", "")
 ROBOT_ID = os.getenv("ROBOT_ID", "fahrdummy-01-local")
 
 
 def send_navigation_command(target_id: str):
     """Send navigation command and monitor result"""
+    if not API_KEY:
+        print("❌ ERROR: CONFIG_SERVICE_API_KEY is not set")
+        return False
+
     print("="*80)
     print(f"Sending navigation command to: {target_id}")
     print("="*80)
@@ -59,60 +63,32 @@ def send_navigation_command(target_id: str):
         
         print(f"✅ Command sent: command_id={command_id}\n")
         
-        # Monitor for 30 seconds
-        print("Monitoring robot response (30 seconds)...")
+        # Wait for authoritative result event
+        print("Waiting for commands/events terminal result (30 seconds)...")
         print("="*80)
-        
-        start_time = time.time()
-        timeout = 30.0
-        last_status = None
-        
-        while (time.time() - start_time) < timeout:
-            # Get current status
-            status_obj = hub.get_status_by_command_id(command_id, timeout=1.0, wait_for_error=False)
-            
-            if status_obj:
-                status_val = status_obj.get('status', 'unknown')
-                error_code = status_obj.get('error_code')
-                progress = status_obj.get('progress_percent', 0)
-                target_id_status = status_obj.get('target_id')
-                
-                # Print if status changed
-                if status_obj != last_status:
-                    print(f"\n📊 Status Update:")
-                    print(f"   Status: {status_val}")
-                    print(f"   Target ID: {target_id_status}")
-                    print(f"   Progress: {progress}%")
-                    if error_code:
-                        print(f"   Error: {error_code}")
-                    last_status = status_obj.copy()
-                    
-                    # Check if navigation completed
-                    if status_val == 'succeeded':
-                        print(f"\n✅ Navigation completed successfully!")
-                        return True
-                    elif status_val == 'error' and error_code:
-                        if error_code == 'NAV_GOAL_ABORTED':
-                            print(f"\n⚠️  Navigation aborted (may be due to no map or unreachable goal)")
-                        else:
-                            print(f"\n❌ Navigation failed: {error_code}")
-                        return False
-            
-            time.sleep(1.0)
-            print(".", end="", flush=True)
-        
-        print(f"\n\n⏱️  Timeout reached")
-        
-        # Final status
-        final_status = hub.get_status_by_command_id(command_id, timeout=2.0, wait_for_error=True)
-        if final_status:
-            status_val = final_status.get('status', 'unknown')
-            error_code = final_status.get('error_code')
-            print(f"\n📊 Final Status:")
-            print(f"   Status: {status_val}")
-            if error_code:
-                print(f"   Error: {error_code}")
-        
+        result_event = hub.wait_for_result_event(command_id, timeout=30.0)
+
+        if not result_event or result_event.get("event_type") != "result":
+            last_type = result_event.get("event_type") if result_event else "none"
+            print(f"\n⏱️  Timeout reached (last event: {last_type})")
+            return False
+
+        result_status = result_event.get("result_status")
+        error_code = result_event.get("error_code")
+        error_message = result_event.get("error_message")
+
+        print("\n📣 Result event received:")
+        print(f"   Result: {result_status}")
+        if error_code:
+            print(f"   Error: {error_code}")
+        if error_message:
+            print(f"   Error message: {error_message}")
+
+        if result_status == "succeeded":
+            print("\n✅ Navigation completed successfully!")
+            return True
+
+        print("\n❌ Navigation failed")
         return False
         
     finally:
