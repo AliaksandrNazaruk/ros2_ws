@@ -398,6 +398,26 @@ class BrokerConfigProvider:
         with self._lock:
             if callback not in self._change_callbacks:
                 self._change_callbacks.append(callback)
+
+    # ------------------------------------------------------------------
+    # Backward-compatible API (used by navigation_integrated_node)
+    # ------------------------------------------------------------------
+
+    def set_polling_interval(self, interval: float) -> None:
+        """Set polling interval used by start_polling()."""
+        try:
+            self._polling_interval = float(interval)
+        except Exception:
+            # Keep previous value on bad input.
+            self._polling_interval = self._polling_interval
+
+    def add_change_callback(self, callback: Callable[[BrokerConfig], None]) -> None:
+        """Alias for watch()."""
+        self.watch(callback)
+
+    def remove_change_callback(self, callback: Callable[[BrokerConfig], None]) -> None:
+        """Alias for unwatch()."""
+        self.unwatch(callback)
     
     def unwatch(self, callback: Callable[[BrokerConfig], None]):
         """
@@ -410,18 +430,20 @@ class BrokerConfigProvider:
             if callback in self._change_callbacks:
                 self._change_callbacks.remove(callback)
     
-    def start_polling(self, interval: float = 5.0):
+    def start_polling(self, interval: Optional[float] = None):
         """
         Start polling for configuration changes.
         
         Args:
-            interval: Polling interval in seconds (default: 5.0)
+            interval: Polling interval in seconds. If None, uses the previously
+                configured value (default is 5.0).
         """
         if self._polling_active:
             self._log("warn", "Polling already active")
             return
-        
-        self._polling_interval = interval
+
+        if interval is not None:
+            self._polling_interval = float(interval)
         self._polling_active = True
         
         def polling_loop():
@@ -431,7 +453,7 @@ class BrokerConfigProvider:
         
         self._polling_thread = threading.Thread(target=polling_loop, daemon=True)
         self._polling_thread.start()
-        self._log("info", f"Started polling for config changes (interval: {interval}s)")
+        self._log("info", f"Started polling for config changes (interval: {self._polling_interval}s)")
     
     def stop_polling(self):
         """Stop polling for configuration changes."""

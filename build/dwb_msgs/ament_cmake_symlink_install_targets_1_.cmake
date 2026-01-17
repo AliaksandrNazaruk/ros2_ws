@@ -1,0 +1,1 @@
+ament_cmake_symlink_install_targets("TARGET_FILES" "/home/boris/ros2_ws/build/dwb_msgs/rosidl_generator_py/dwb_msgs/dwb_msgs_s__rosidl_typesupport_introspection_c.so" "TARGETS" "dwb_msgs_s__rosidl_typesupport_introspection_c" "DESTINATION" "lib/python3.12/site-packages/dwb_msgs")

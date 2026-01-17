@@ -1,0 +1,1 @@
+/home/boris/ros2_ws/build/symovo_bridge/ament_cmake_environment_hooks/local_setup.bash

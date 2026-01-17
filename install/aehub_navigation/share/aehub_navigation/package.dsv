@@ -1,0 +1,11 @@
+source;share/aehub_navigation/hook/cmake_prefix_path.ps1
+source;share/aehub_navigation/hook/cmake_prefix_path.dsv
+source;share/aehub_navigation/hook/cmake_prefix_path.sh
+source;share/aehub_navigation/hook/pythonpath.ps1
+source;share/aehub_navigation/hook/pythonpath.dsv
+source;share/aehub_navigation/hook/pythonpath.sh
+source;share/aehub_navigation/local_setup.bash
+source;share/aehub_navigation/local_setup.dsv
+source;share/aehub_navigation/local_setup.ps1
+source;share/aehub_navigation/local_setup.sh
+source;share/aehub_navigation/local_setup.zsh

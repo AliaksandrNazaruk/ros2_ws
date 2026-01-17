@@ -1,0 +1,4 @@
+source;share/opennav_docking/local_setup.bash
+source;share/opennav_docking/local_setup.dsv
+source;share/opennav_docking/local_setup.sh
+source;share/opennav_docking/local_setup.zsh

@@ -1,0 +1,36 @@
+{
+  "type_description_msg": {
+    "type_description": {
+      "type_name": "nav2_msgs/action/NavigateThroughPoses_Result",
+      "fields": [
+        {
+          "name": "error_code",
+          "type": {
+            "type_id": 5,
+            "capacity": 0,
+            "string_capacity": 0,
+            "nested_type_name": ""
+          },
+          "default_value": ""
+        },
+        {
+          "name": "error_msg",
+          "type": {
+            "type_id": 17,
+            "capacity": 0,
+            "string_capacity": 0,
+            "nested_type_name": ""
+          },
+          "default_value": ""
+        }
+      ]
+    },
+    "referenced_type_descriptions": []
+  },
+  "type_hashes": [
+    {
+      "type_name": "nav2_msgs/action/NavigateThroughPoses_Result",
+      "hash_string": "RIHS01_e64524990d7d2778a414b35a00cc98e45acfda9aaa3cf810d07340fcde324d67"
+    }
+  ]
+}

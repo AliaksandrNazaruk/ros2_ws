@@ -1,0 +1,1 @@
+ament_cmake_symlink_install_targets("TARGET_FILES" "/home/boris/ros2_ws/build/aehub_navigation/libposition_registry.so" "/home/boris/ros2_ws/build/aehub_navigation/libnav2_action_client.so" "TARGETS" "position_registry" "nav2_action_client" "DESTINATION" "lib/aehub_navigation")

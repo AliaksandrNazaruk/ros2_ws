@@ -1,0 +1,7 @@
+setup.py
+symovo_bridge/__init__.py
+symovo_bridge/symovo_scan_converter.py
+symovo_bridge.egg-info/PKG-INFO
+symovo_bridge.egg-info/SOURCES.txt
+symovo_bridge.egg-info/dependency_links.txt
+symovo_bridge.egg-info/top_level.txt

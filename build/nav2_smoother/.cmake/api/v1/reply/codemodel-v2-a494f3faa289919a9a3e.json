@@ -1,0 +1,203 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Release-55c4962013003aa9c15a.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						2,
+						3,
+						4,
+						5,
+						6,
+						10
+					]
+				},
+				{
+					"build" : "test",
+					"childIndexes" : 
+					[
+						2
+					],
+					"jsonFile" : "directory-test-Release-451c0598f41488bb20b9.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "test",
+					"targetIndexes" : 
+					[
+						7,
+						8,
+						9
+					]
+				},
+				{
+					"build" : "gtest",
+					"jsonFile" : "directory-gtest-Release-0908a8c91ddba5d6c989.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.8"
+					},
+					"parentIndex" : 1,
+					"projectIndex" : 1,
+					"source" : "/opt/ros/jazzy/src/gtest_vendor",
+					"targetIndexes" : 
+					[
+						0,
+						1
+					]
+				}
+			],
+			"name" : "Release",
+			"projects" : 
+			[
+				{
+					"childIndexes" : 
+					[
+						1
+					],
+					"directoryIndexes" : 
+					[
+						0,
+						1
+					],
+					"name" : "nav2_smoother",
+					"targetIndexes" : 
+					[
+						2,
+						3,
+						4,
+						5,
+						6,
+						7,
+						8,
+						9,
+						10
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						2
+					],
+					"name" : "gtest",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						0,
+						1
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 2,
+					"id" : "gtest::@0af4add9fe94340e763e",
+					"jsonFile" : "target-gtest-Release-8f8c03ab540d2af2738a.json",
+					"name" : "gtest",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "gtest_main::@0af4add9fe94340e763e",
+					"jsonFile" : "target-gtest_main-Release-44aca00c72e9064128e5.json",
+					"name" : "gtest_main",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "nav2_smoother_uninstall::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-nav2_smoother_uninstall-Release-dd36af71d5de5a720e78.json",
+					"name" : "nav2_smoother_uninstall",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "savitzky_golay_smoother::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-savitzky_golay_smoother-Release-5849645e228c771311ee.json",
+					"name" : "savitzky_golay_smoother",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "simple_smoother::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-simple_smoother-Release-fb87cd57312e66fc0d7d.json",
+					"name" : "simple_smoother",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "smoother_server::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-smoother_server-Release-8edcf16410b5ee8b7917.json",
+					"name" : "smoother_server",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "smoother_server_core::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-smoother_server_core-Release-15a8247007f8ac73d70f.json",
+					"name" : "smoother_server_core",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "test_savitzky_golay_smoother::@36f028580bb02cc8272a",
+					"jsonFile" : "target-test_savitzky_golay_smoother-Release-2c369987fbebb8b8878a.json",
+					"name" : "test_savitzky_golay_smoother",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "test_simple_smoother::@36f028580bb02cc8272a",
+					"jsonFile" : "target-test_simple_smoother-Release-ddb5d043acd6b9ab0edb.json",
+					"name" : "test_simple_smoother",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "test_smoother_server::@36f028580bb02cc8272a",
+					"jsonFile" : "target-test_smoother_server-Release-c61d19fec857ae6f97e6.json",
+					"name" : "test_smoother_server",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "uninstall::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-uninstall-Release-c0cc7a55dc9b0b82bf64.json",
+					"name" : "uninstall",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/boris/ros2_ws/build/nav2_smoother",
+		"source" : "/home/boris/ros2_ws/src/navigation2/nav2_smoother"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 6
+	}
+}

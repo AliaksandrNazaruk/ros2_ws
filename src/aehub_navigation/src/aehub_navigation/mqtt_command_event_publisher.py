@@ -54,15 +54,15 @@ class MQTTCommandEventPublisher:
         except Exception:
             return False
 
-    def publish_ack(self, command_id: str, target_id: Optional[str], ack_type: str, reason: Optional[str] = None):
+    def publish_ack(self, command_id: str, target_id: Optional[str], ack_status: str, reason: Optional[str] = None):
         """
-        ack_type: received | accepted | rejected
+        ack_status: received | accepted | rejected
         """
         payload = {
-            'schema_version': '1.0',
+            'schema_version': '2.0',
             'robot_id': self.robot_id,
             'event_type': 'ack',
-            'ack_type': ack_type,
+            'ack_status': ack_status,
             'command_id': command_id,
             'target_id': target_id,
         }
@@ -70,16 +70,16 @@ class MQTTCommandEventPublisher:
             payload['reason'] = reason
         self._publish_event(payload)
 
-    def publish_result(self, command_id: str, target_id: Optional[str], result_type: str,
+    def publish_result(self, command_id: str, target_id: Optional[str], result_status: str,
                        error_code: Optional[str] = None, error_message: Optional[str] = None):
         """
-        result_type: succeeded | aborted | canceled | error
+        result_status: succeeded | aborted | canceled | error
         """
         payload = {
-            'schema_version': '1.0',
+            'schema_version': '2.0',
             'robot_id': self.robot_id,
             'event_type': 'result',
-            'result_type': result_type,
+            'result_status': result_status,
             'command_id': command_id,
             'target_id': target_id,
             'error_code': error_code,

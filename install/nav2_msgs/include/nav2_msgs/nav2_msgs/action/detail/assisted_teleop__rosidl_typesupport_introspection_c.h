@@ -1,0 +1,1 @@
+/home/boris/ros2_ws/build/nav2_msgs/rosidl_typesupport_introspection_c/nav2_msgs/action/detail/assisted_teleop__rosidl_typesupport_introspection_c.h

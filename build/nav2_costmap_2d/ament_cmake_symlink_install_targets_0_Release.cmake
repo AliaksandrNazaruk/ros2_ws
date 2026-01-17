@@ -1,0 +1,1 @@
+ament_cmake_symlink_install_targets("TARGET_FILES" "/home/boris/ros2_ws/build/nav2_costmap_2d/nav2_costmap_2d_markers" "/home/boris/ros2_ws/build/nav2_costmap_2d/nav2_costmap_2d_cloud" "/home/boris/ros2_ws/build/nav2_costmap_2d/nav2_costmap_2d" "TARGETS" "nav2_costmap_2d_markers" "nav2_costmap_2d_cloud" "nav2_costmap_2d" "DESTINATION" "lib/nav2_costmap_2d")

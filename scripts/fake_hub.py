@@ -59,6 +59,8 @@ class FakeHub:
         
         # Track statuses by command_id
         self.status_by_command_id: Dict[str, Dict[str, Any]] = {}
+        # Track command events by command_id (ack/result)
+        self.events_by_command_id: Dict[str, Dict[str, Any]] = {}
         # First fixed status with error by command_id (do not overwrite)
         self.error_status_by_command_id: Dict[str, Dict[str, Any]] = {}
         # Timing (measured on the hub side, monotonic clock, in seconds)
@@ -204,7 +206,6 @@ class FakeHub:
         try:
             payload = json.loads(msg.payload.decode('utf-8'))
             self.statuses_received += 1
-            self.last_status = payload
             recv_t = self._now_mono()
             
             # Handle command events
@@ -213,20 +214,17 @@ class FakeHub:
                 cmd_id = payload.get('command_id')
                 if cmd_id:
                     with self._status_lock:
-                        # Save event as "history" for test verification
-                        self.status_by_command_id[cmd_id] = payload
+                        self.events_by_command_id[cmd_id] = payload
                         td = self._timing_by_command_id.setdefault(cmd_id, {})
                         if ev_type == 'ack':
-                            ack_type = payload.get('ack_type')
-                            if ack_type:
-                                td.setdefault(f"t_ack_{ack_type}", recv_t)
+                            ack_status = payload.get('ack_status')
+                            if ack_status:
+                                td.setdefault(f"t_ack_{ack_status}", recv_t)
                         elif ev_type == 'result':
-                            result_type = payload.get('result_type')
-                            if result_type:
-                                td.setdefault(f"t_result_{result_type}", recv_t)
-                        if (ev_type == 'result') and payload.get('error_code') and cmd_id not in self.error_status_by_command_id:
-                            self.error_status_by_command_id[cmd_id] = payload
-                    print(f"   🔔 EVENT [{ev_type}] command_id={cmd_id}, result={payload.get('result_type')}, ack={payload.get('ack_type')}, error={payload.get('error_code')}")
+                            result_status = payload.get('result_status')
+                            if result_status:
+                                td.setdefault(f"t_result_{result_status}", recv_t)
+                    print(f"   🔔 EVENT [{ev_type}] command_id={cmd_id}, result={payload.get('result_status')}, ack={payload.get('ack_status')}, error={payload.get('error_code')}")
                 return
             
             # Save status by command_id for tracking (for compatibility)
@@ -246,6 +244,7 @@ class FakeHub:
                         self.error_status_by_command_id[command_id] = stored
                     print(f"    Saved status for command_id={command_id}: status={stored.get('status')}, error={stored.get('error_code')}, (was: {old_status})")
             
+            self.last_status = payload
             print(f"\n STATUS RECEIVED [{self.statuses_received}]:")
             print(f"   Topic: {msg.topic}")
             status_val = payload.get('status')
@@ -318,6 +317,27 @@ class FakeHub:
         """Clear status history"""
         with self._status_lock:
             self.status_by_command_id.clear()
+            self.events_by_command_id.clear()
+            self.error_status_by_command_id.clear()
+
+    def wait_for_result_event(self, command_id: str, timeout: float = 30.0) -> Optional[Dict[str, Any]]:
+        """
+        Wait for terminal result event for a command_id.
+
+        Returns the last seen event if timeout is reached.
+        """
+        start_time = time.time()
+        last_event = None
+        while (time.time() - start_time) < timeout:
+            with self._status_lock:
+                ev = self.events_by_command_id.get(command_id)
+                if ev:
+                    last_event = ev
+                    if ev.get('event_type') == 'result':
+                        return ev
+            time.sleep(0.1)
+
+        return last_event
     
     def _on_mqtt_disconnect(self, client, userdata, rc, properties=None):
         """MQTT disconnection callback"""
@@ -338,9 +358,9 @@ class FakeHub:
             print(" MQTT not connected")
             return False
         
-        # SPECIFICATION.md strict schema fields
+        # SPECIFICATION.md strict schema fields (Canonical v2.0)
         command = {
-            "schema_version": "1.0",
+            "schema_version": "2.0",
             "robot_id": self.robot_id,
             "command_id": str(uuid.uuid4()),
             # Use Z-suffix ISO-8601 for consistency with SPECIFICATION.md
@@ -384,10 +404,10 @@ class FakeHub:
             print(" MQTT not connected")
             return None
 
-        # SPECIFICATION.md strict schema fields
+        # SPECIFICATION.md strict schema fields (Canonical v2.0)
         # NOTE: We use target_id="__pose__" as a reserved ID for direct pose mode.
         command = {
-            "schema_version": "1.0",
+            "schema_version": "2.0",
             "robot_id": self.robot_id,
             "command_id": str(uuid.uuid4()),
             "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -432,9 +452,9 @@ class FakeHub:
             print(" MQTT not connected")
             return False
         
-        # SPECIFICATION.md strict schema fields
+        # SPECIFICATION.md strict schema fields (Canonical v2.0)
         command = {
-            "schema_version": "1.0",
+            "schema_version": "2.0",
             "robot_id": self.robot_id,
             "command_id": str(uuid.uuid4()),
             "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),

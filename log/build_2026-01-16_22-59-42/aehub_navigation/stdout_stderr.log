@@ -1,0 +1,94 @@
+[ 50%] Built target nav2_action_client
+[100%] Built target position_registry
+[100%] Built target ament_cmake_python_symlink_aehub_navigation
+[100%] Built target ament_cmake_python_symlink_aehub_navigation_setup
+running install_scripts
+/usr/lib/python3/dist-packages/setuptools/_distutils/cmd.py:66: SetuptoolsDeprecationWarning: setup.py install is deprecated.
+!!
+
+        ********************************************************************************
+        Please avoid running ``setup.py`` directly.
+        Instead, use pypa/build, pypa/installer or other
+        standards-based tools.
+
+        See https://blog.ganssle.io/articles/2021/10/setup-py-deprecated.html for details.
+        ********************************************************************************
+
+!!
+  self.initialize_options()
+running egg_info
+running egg_info
+writing aehub_navigation.egg-info/PKG-INFO
+writing dependency_links to aehub_navigation.egg-info/dependency_links.txt
+writing top-level names to aehub_navigation.egg-info/top_level.txt
+writing aehub_navigation.egg-info/PKG-INFO
+writing dependency_links to aehub_navigation.egg-info/dependency_links.txt
+writing top-level names to aehub_navigation.egg-info/top_level.txt
+reading manifest file 'aehub_navigation.egg-info/SOURCES.txt'
+writing manifest file 'aehub_navigation.egg-info/SOURCES.txt'
+reading manifest file 'aehub_navigation.egg-info/SOURCES.txt'
+writing manifest file 'aehub_navigation.egg-info/SOURCES.txt'
+[100%] Built target ament_cmake_python_build_aehub_navigation_egg
+[100%] Built target ament_cmake_python_build_aehub_navigation_scripts
+-- Install configuration: ""
+-- Execute custom install script
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/environment/library_path.sh
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/environment/library_path.dsv
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/aehub_navigation/libposition_registry.so
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/aehub_navigation/libnav2_action_client.so
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/include/aehub_navigation/nav2_action_client.hpp
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/include/aehub_navigation/position_registry.hpp
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/environment/pythonpath.sh
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/environment/pythonpath.dsv
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation-0.1.0-py3.12.egg-info/PKG-INFO
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation-0.1.0-py3.12.egg-info/SOURCES.txt
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation-0.1.0-py3.12.egg-info/dependency_links.txt
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation-0.1.0-py3.12.egg-info/top_level.txt
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__init__.py
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/broker_config_provider.py
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/circuit_breaker.py
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/command_rate_limiter.py
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/command_validator.py
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/error_handler.py
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/initial_pose_from_symovo.py
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/mqtt_command_event_publisher.py
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/mqtt_connection_manager.py
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/mqtt_status_publisher.py
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/navigation_action_client.py
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/navigation_command_handler.py
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/navigation_integrated_node.py
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/navigation_state_manager.py
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/position_registry.py
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/symovo_map_loader.py
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/config/positions.yaml
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/ament_index/resource_index/package_run_dependencies/aehub_navigation
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/ament_index/resource_index/parent_prefix_path/aehub_navigation
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/environment/ament_prefix_path.sh
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/environment/ament_prefix_path.dsv
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/environment/path.sh
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/environment/path.dsv
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/local_setup.bash
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/local_setup.sh
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/local_setup.zsh
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/local_setup.dsv
+-- Symlinking: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/package.dsv
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/ament_index/resource_index/packages/aehub_navigation
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/cmake/ament_cmake_export_include_directories-extras.cmake
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/cmake/ament_cmake_export_libraries-extras.cmake
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/cmake/ament_cmake_export_dependencies-extras.cmake
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/cmake/aehub_navigationConfig.cmake
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/cmake/aehub_navigationConfig-version.cmake
+-- Up-to-date symlink: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/package.xml
+Listing '/home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation'...
+Compiling '/home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/command_validator.py'...
+Compiling '/home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/error_handler.py'...
+Compiling '/home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/mqtt_command_event_publisher.py'...
+Compiling '/home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/mqtt_status_publisher.py'...
+Compiling '/home/boris/ros2_ws/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/navigation_integrated_node.py'...
+-- Installing: /home/boris/ros2_ws/install/aehub_navigation/lib/aehub_navigation/navigation_integrated_node
+-- Up-to-date: /home/boris/ros2_ws/install/aehub_navigation/lib/aehub_navigation/navigation_command_handler
+-- Installing: /home/boris/ros2_ws/install/aehub_navigation/lib/aehub_navigation/mqtt_status_publisher
+-- Up-to-date: /home/boris/ros2_ws/install/aehub_navigation/lib/aehub_navigation/initial_pose_from_symovo
+-- Up-to-date: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/launch
+-- Up-to-date: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/launch/symovo_nav2.launch.py
+-- Up-to-date: /home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/launch/aehub_navigation.launch.py

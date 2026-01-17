@@ -14,21 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Command Rate Limiter
+"""aehub_navigation.command_rate_limiter
 
-Limits the rate of commands to prevent abuse and ensure system stability.
-Checks minimum interval between commands with the same command_id.
+Key fix versus the previous implementation:
+- Rate limiting must be *global* (or at least per-command type), not keyed by
+  `command_id`. A caller can otherwise trivially bypass rate limiting by
+  generating fresh UUIDs.
 
-AE.HUB MVP: Prevents command flooding and ensures reasonable command spacing.
-
-NOTE: This is a pure Python module, NOT a ROS2 Node.
-Thread-safe for concurrent access.
+This module therefore enforces a minimum interval between *received commands*
+overall (and optionally per "bucket").
 """
 
 import threading
 import time
-from typing import Optional, Tuple, Dict
+from typing import Optional, Tuple
 
 
 class CommandRateLimiter:
@@ -48,17 +47,18 @@ class CommandRateLimiter:
         """
         self._min_interval_seconds = min_interval_seconds
         
-        # Thread-safe storage for last command time
-        # Dict: command_id -> timestamp (when last command was received)
-        self._last_command_time: Dict[str, float] = {}
+        # Thread-safe storage for last command time.
+        # IMPORTANT: This is intentionally NOT keyed by command_id.
+        self._last_command_time: float = 0.0
         self._lock = threading.Lock()
     
-    def check_rate_limit(self, command_id: str, current_time: Optional[float] = None) -> Tuple[bool, Optional[str]]:
+    def check_rate_limit(self, bucket: str = "default", current_time: Optional[float] = None) -> Tuple[bool, Optional[str]]:
         """
         Check if command violates rate limit.
         
         Args:
-            command_id: Command ID to check
+            bucket: Optional bucket name (kept for future extensibility).
+                    Current implementation is global and ignores the value.
             current_time: Current timestamp (if None, uses time.time())
         
         Returns:
@@ -70,21 +70,19 @@ class CommandRateLimiter:
             current_time = time.time()
         
         with self._lock:
-            if command_id in self._last_command_time:
-                time_since_last = current_time - self._last_command_time[command_id]
-                if time_since_last < self._min_interval_seconds:
-                    error_msg = (
-                        f'Command rate limit exceeded: {command_id} sent too frequently '
-                        f'({time_since_last:.3f}s < {self._min_interval_seconds}s)'
-                    )
-                    return (False, error_msg)
-            
-            # Update last command time
-            self._last_command_time[command_id] = current_time
+            time_since_last = current_time - self._last_command_time
+            if time_since_last < self._min_interval_seconds:
+                error_msg = (
+                    f'Command rate limit exceeded: commands sent too frequently '
+                    f'({time_since_last:.3f}s < {self._min_interval_seconds}s)'
+                )
+                return (False, error_msg)
+
+            self._last_command_time = current_time
         
         return (True, None)
     
-    def update_last_command_time(self, command_id: str, current_time: Optional[float] = None):
+    def update_last_command_time(self, current_time: Optional[float] = None):
         """
         Update last command time for a command_id.
         
@@ -96,53 +94,27 @@ class CommandRateLimiter:
             current_time = time.time()
         
         with self._lock:
-            self._last_command_time[command_id] = current_time
+            self._last_command_time = current_time
     
     def cleanup_old_entries(self, max_age_seconds: float = 3600, current_time: Optional[float] = None):
+        """No-op for backward compatibility.
+
+        The earlier implementation used a per-command-id dictionary and needed
+        pruning. The current implementation is constant-space.
         """
-        Clean up old entries to prevent memory leaks.
-        
-        Args:
-            max_age_seconds: Maximum age of entries to keep (seconds)
-            current_time: Current timestamp (if None, uses time.time())
-        """
-        if current_time is None:
-            current_time = time.time()
-        
-        with self._lock:
-            # Remove entries older than max_age_seconds
-            expired_ids = [
-                cmd_id for cmd_id, timestamp in self._last_command_time.items()
-                if (current_time - timestamp) > max_age_seconds
-            ]
-            
-            for cmd_id in expired_ids:
-                del self._last_command_time[cmd_id]
-            
-            # If still too large, remove oldest entries
-            max_entries = 1000
-            if len(self._last_command_time) > max_entries:
-                sorted_items = sorted(
-                    self._last_command_time.items(),
-                    key=lambda x: x[1]  # Sort by timestamp
-                )
-                # Remove oldest half
-                ids_to_remove = [cmd_id for cmd_id, _ in sorted_items[:max_entries // 2]]
-                for cmd_id in ids_to_remove:
-                    del self._last_command_time[cmd_id]
+        _ = max_age_seconds
+        _ = current_time
+        return
     
-    def get_last_command_time(self, command_id: str) -> Optional[float]:
+    def get_last_command_time(self) -> Optional[float]:
         """
         Get last command time for a command_id.
-        
-        Args:
-            command_id: Command ID to query
         
         Returns:
             Timestamp of last command, or None if not found
         """
         with self._lock:
-            return self._last_command_time.get(command_id)
+            return self._last_command_time or None
     
     def clear(self):
         """
@@ -150,5 +122,5 @@ class CommandRateLimiter:
         Useful for testing or reset scenarios.
         """
         with self._lock:
-            self._last_command_time.clear()
+            self._last_command_time = 0.0
 

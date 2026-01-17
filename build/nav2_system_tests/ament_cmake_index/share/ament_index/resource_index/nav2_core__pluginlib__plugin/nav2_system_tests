@@ -1,0 +1,3 @@
+share/nav2_system_tests/src/error_codes/controller_plugins.xml
+share/nav2_system_tests/src/error_codes/planner_plugins.xml
+share/nav2_system_tests/src/error_codes/smoother_plugins.xml

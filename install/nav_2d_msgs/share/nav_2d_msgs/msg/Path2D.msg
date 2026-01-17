@@ -1,0 +1,1 @@
+/home/boris/ros2_ws/src/navigation2/nav2_dwb_controller/nav_2d_msgs/msg/Path2D.msg
