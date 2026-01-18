@@ -16,10 +16,10 @@ Environment=ROS_DOMAIN_ID=0
 Environment=RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 Environment=ROBOT_ID=fahrdummy-01-local
 Environment=CONFIG_SERVICE_URL=http://localhost:7900
-Environment=CONFIG_SERVICE_API_KEY=CHANGE_ME
+Environment=CONFIG_SERVICE_API_KEY=tR-UZ2j2KutE6OYlEGbsx0h5qe071L-gC5kd1hHKfw4
 Environment=USE_SIM_TIME=false
 Environment=AUTOSTART=true
-Environment=TLS_VERIFY=false
+Environment=TLS_VERIFY=true
 Environment=SYMOVO_AUTO_ENABLE_DRIVE_MODE=true
 
 ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && source /home/boris/ros2_ws/install/setup.bash && exec ros2 launch aehub_navigation symovo_nav2.launch.py robot_id:=$ROBOT_ID config_service_url:=$CONFIG_SERVICE_URL config_service_api_key:=$CONFIG_SERVICE_API_KEY use_sim_time:=$USE_SIM_TIME autostart:=$AUTOSTART tls_verify:=$TLS_VERIFY symovo_auto_enable_drive_mode:=$SYMOVO_AUTO_ENABLE_DRIVE_MODE'

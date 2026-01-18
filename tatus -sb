@@ -1,0 +1,129 @@
+[1mdiff --git a/docs/examples/aehub-stack.service.example b/docs/examples/aehub-stack.service.example[m
+[1mindex de0c24f2..5b2b4043 100644[m
+[1m--- a/docs/examples/aehub-stack.service.example[m
+[1m+++ b/docs/examples/aehub-stack.service.example[m
+[36m@@ -16,10 +16,10 @@[m [mEnvironment=ROS_DOMAIN_ID=0[m
+ Environment=RMW_IMPLEMENTATION=rmw_fastrtps_cpp[m
+ Environment=ROBOT_ID=fahrdummy-01-local[m
+ Environment=CONFIG_SERVICE_URL=http://localhost:7900[m
+[31m-Environment=CONFIG_SERVICE_API_KEY=CHANGE_ME[m
+[32m+[m[32mEnvironment=CONFIG_SERVICE_API_KEY=tR-UZ2j2KutE6OYlEGbsx0h5qe071L-gC5kd1hHKfw4[m
+ Environment=USE_SIM_TIME=false[m
+ Environment=AUTOSTART=true[m
+[31m-Environment=TLS_VERIFY=false[m
+[32m+[m[32mEnvironment=TLS_VERIFY=true[m
+ Environment=SYMOVO_AUTO_ENABLE_DRIVE_MODE=true[m
+ [m
+ ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && source /home/boris/ros2_ws/install/setup.bash && exec ros2 launch aehub_navigation symovo_nav2.launch.py robot_id:=$ROBOT_ID config_service_url:=$CONFIG_SERVICE_URL config_service_api_key:=$CONFIG_SERVICE_API_KEY use_sim_time:=$USE_SIM_TIME autostart:=$AUTOSTART tls_verify:=$TLS_VERIFY symovo_auto_enable_drive_mode:=$SYMOVO_AUTO_ENABLE_DRIVE_MODE'[m
+[1mdiff --git a/docs/examples/aehub_stack.env.example b/docs/examples/aehub_stack.env.example[m
+[1mindex b22a05b1..3eb82d3c 100644[m
+[1m--- a/docs/examples/aehub_stack.env.example[m
+[1m+++ b/docs/examples/aehub_stack.env.example[m
+[36m@@ -11,12 +11,12 @@[m [mRMW_IMPLEMENTATION=rmw_fastrtps_cpp[m
+ # AEHub / config service[m
+ ROBOT_ID=fahrdummy-01-local[m
+ CONFIG_SERVICE_URL=http://localhost:7900[m
+[31m-CONFIG_SERVICE_API_KEY=CHANGE_ME[m
+[32m+[m[32mCONFIG_SERVICE_API_KEY=tR-UZ2j2KutE6OYlEGbsx0h5qe071L-gC5kd1hHKfw4[m
+ [m
+ # Launch flags (must be 'true'/'false' strings for launch substitutions)[m
+ USE_SIM_TIME=false[m
+ AUTOSTART=true[m
+[31m-TLS_VERIFY=false[m
+[32m+[m[32mTLS_VERIFY=true[m
+ SYMOVO_AUTO_ENABLE_DRIVE_MODE=true[m
+ [m
+ # Optional: Symovo endpoint override (if your launch supports it via args)[m
+[1mdiff --git a/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/broker_config_provider.cpython-312.pyc b/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/broker_config_provider.cpython-312.pyc[m
+[1mindex ea36019c..b2004683 100644[m
+Binary files a/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/broker_config_provider.cpython-312.pyc and b/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/broker_config_provider.cpython-312.pyc differ
+[1mdiff --git a/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/command_rate_limiter.cpython-312.pyc b/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/command_rate_limiter.cpython-312.pyc[m
+[1mindex 601800d9..a714524b 100644[m
+Binary files a/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/command_rate_limiter.cpython-312.pyc and b/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/command_rate_limiter.cpython-312.pyc differ
+[1mdiff --git a/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/command_validator.cpython-312.pyc b/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/command_validator.cpython-312.pyc[m
+[1mindex 34e723e7..cca6c520 100644[m
+Binary files a/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/command_validator.cpython-312.pyc and b/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/command_validator.cpython-312.pyc differ
+[1mdiff --git a/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/error_handler.cpython-312.pyc b/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/error_handler.cpython-312.pyc[m
+[1mindex 219d9524..6baa7899 100644[m
+Binary files a/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/error_handler.cpython-312.pyc and b/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/error_handler.cpython-312.pyc differ
+[1mdiff --git a/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/mqtt_command_event_publisher.cpython-312.pyc b/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/mqtt_command_event_publisher.cpython-312.pyc[m
+[1mindex b80d1d91..82e66c29 100644[m
+Binary files a/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/mqtt_command_event_publisher.cpython-312.pyc and b/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/mqtt_command_event_publisher.cpython-312.pyc differ
+[1mdiff --git a/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/mqtt_connection_manager.cpython-312.pyc b/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/mqtt_connection_manager.cpython-312.pyc[m
+[1mindex c5d3e40a..e89c761b 100644[m
+Binary files a/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/mqtt_connection_manager.cpython-312.pyc and b/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/mqtt_connection_manager.cpython-312.pyc differ
+[1mdiff --git a/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/mqtt_status_publisher.cpython-312.pyc b/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/mqtt_status_publisher.cpython-312.pyc[m
+[1mindex def710fa..0bc801af 100644[m
+Binary files a/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/mqtt_status_publisher.cpython-312.pyc and b/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/mqtt_status_publisher.cpython-312.pyc differ
+[1mdiff --git a/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/navigation_action_client.cpython-312.pyc b/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/navigation_action_client.cpython-312.pyc[m
+[1mindex 85d7a0d3..71742d1f 100644[m
+Binary files a/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/navigation_action_client.cpython-312.pyc and b/install/aehub_navigation/lib/python3.12/site-packages/aehub_navigation/__pycache__/navigation_action_client.cpython-312.pyc differ
+[1mdiff --git a/install/aehub_navigation/share/aehub_navigation/launch/__pycache__/symovo_nav2.launch.cpython-312.pyc b/install/aehub_navigation/share/aehub_navigation/launch/__pycache__/symovo_nav2.launch.cpython-312.pyc[m
+[1mindex f70eec80..292e07d3 100644[m
+Binary files a/install/aehub_navigation/share/aehub_navigation/launch/__pycache__/symovo_nav2.launch.cpython-312.pyc and b/install/aehub_navigation/share/aehub_navigation/launch/__pycache__/symovo_nav2.launch.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/__pycache__/__init__.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/__pycache__/__init__.cpython-312.pyc[m
+[1mindex 20dda0e2..40b9b0e1 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/__pycache__/__init__.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/__pycache__/__init__.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/__init__.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/__init__.cpython-312.pyc[m
+[1mindex f26ff63e..47b8dfec 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/__init__.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/__init__.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_assisted_teleop.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_assisted_teleop.cpython-312.pyc[m
+[1mindex f966a4a7..e08d1ba0 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_assisted_teleop.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_assisted_teleop.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_back_up.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_back_up.cpython-312.pyc[m
+[1mindex eec041a2..a5e29896 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_back_up.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_back_up.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_compute_and_track_route.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_compute_and_track_route.cpython-312.pyc[m
+[1mindex 1fdf637f..434f3f06 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_compute_and_track_route.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_compute_and_track_route.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_compute_path_through_poses.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_compute_path_through_poses.cpython-312.pyc[m
+[1mindex d6f04ce1..61ee238e 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_compute_path_through_poses.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_compute_path_through_poses.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_compute_path_to_pose.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_compute_path_to_pose.cpython-312.pyc[m
+[1mindex f18f2817..e0986d81 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_compute_path_to_pose.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_compute_path_to_pose.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_compute_route.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_compute_route.cpython-312.pyc[m
+[1mindex 408133a8..28ead0e0 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_compute_route.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_compute_route.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_dock_robot.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_dock_robot.cpython-312.pyc[m
+[1mindex 8cd63fad..42d7cf14 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_dock_robot.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_dock_robot.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_drive_on_heading.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_drive_on_heading.cpython-312.pyc[m
+[1mindex 8149fb46..dcb58ece 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_drive_on_heading.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_drive_on_heading.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_dummy_behavior.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_dummy_behavior.cpython-312.pyc[m
+[1mindex f334e7e3..862955fd 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_dummy_behavior.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_dummy_behavior.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_follow_gps_waypoints.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_follow_gps_waypoints.cpython-312.pyc[m
+[1mindex 883512af..5106bb97 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_follow_gps_waypoints.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_follow_gps_waypoints.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_follow_path.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_follow_path.cpython-312.pyc[m
+[1mindex b0287b31..5705cee7 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_follow_path.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_follow_path.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_follow_waypoints.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_follow_waypoints.cpython-312.pyc[m
+[1mindex eb55a32f..0c4bc5d2 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_follow_waypoints.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_follow_waypoints.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_navigate_through_poses.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_navigate_through_poses.cpython-312.pyc[m
+[1mindex a53cb1b1..9a0467c7 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_navigate_through_poses.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_navigate_through_poses.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_navigate_to_pose.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_navigate_to_pose.cpython-312.pyc[m
+[1mindex a2b218f5..95158b37 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_navigate_to_pose.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_navigate_to_pose.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_smooth_path.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_smooth_path.cpython-312.pyc[m
+[1mindex 66538fef..a145e712 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_smooth_path.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_smooth_path.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_spin.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_spin.cpython-312.pyc[m
+[1mindex 16aeb079..eff500a1 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_spin.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_spin.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_undock_robot.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_undock_robot.cpython-312.pyc[m
+[1mindex bf6a0544..6ca97b88 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_undock_robot.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_undock_robot.cpython-312.pyc differ
+[1mdiff --git a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_wait.cpython-312.pyc b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_wait.cpython-312.pyc[m
+[1mindex 85c403bb..70731c25 100644[m
+Binary files a/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_wait.cpython-312.pyc and b/install/nav2_msgs/lib/python3.12/site-packages/nav2_msgs/action/__pycache__/_wait.cpython-312.pyc differ
+[1mdiff --git a/src/base_controller b/src/base_controller[m
+[1m--- a/src/base_controller[m
+[1m+++ b/src/base_controller[m
+[36m@@ -1 +1 @@[m
+[31m-Subproject commit d885dcc26e0f36ec026c66d7e56c65cf3477d38b[m
+[32m+[m[32mSubproject commit d885dcc26e0f36ec026c66d7e56c65cf3477d38b-dirty[m
