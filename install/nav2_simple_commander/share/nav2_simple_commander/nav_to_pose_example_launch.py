@@ -1,1 +1,0 @@
-/home/boris/ros2_ws/build/nav2_simple_commander/launch/nav_to_pose_example_launch.py

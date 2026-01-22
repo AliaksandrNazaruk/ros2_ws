@@ -1,0 +1,36 @@
+[Unit]
+Description=AEHub dual stack (real + sim profiles)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=boris
+WorkingDirectory=/home/boris/ros2_ws
+
+# Load runtime parameters (API keys etc.) outside of git.
+EnvironmentFile=-/etc/aehub/aehub_stack.env
+
+# Defaults (override in /etc/aehub/aehub_stack.env)
+Environment=RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+
+Environment=CONFIG_SERVICE_URL=http://localhost:7900
+Environment=CONFIG_SERVICE_API_KEY=tR-UZ2j2KutE6OYlEGbsx0h5qe071L-gC
+
+Environment=ROBOT_ID_REAL=fahrdummy-01-local
+Environment=ROBOT_ID_SIM=fahrdummy-01-local_sim
+
+# ROS graph split (avoid collisions)
+Environment=ROS_DOMAIN_ID_REAL=0
+Environment=ROS_DOMAIN_ID_SIM=10
+
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && source /home/boris/ros2_ws/install/setup.bash && exec /home/boris/ros2_ws/scripts/aehub_dual_stack.sh'
+
+KillSignal=SIGINT
+TimeoutStopSec=25
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+

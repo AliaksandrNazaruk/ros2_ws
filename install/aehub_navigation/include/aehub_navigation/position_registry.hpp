@@ -1,1 +1,0 @@
-/home/boris/ros2_ws/src/aehub_navigation/include/aehub_navigation/position_registry.hpp

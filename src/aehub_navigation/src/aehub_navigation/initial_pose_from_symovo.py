@@ -61,13 +61,15 @@ class InitialPoseFromSymovo(Node):
         qos = QoSProfile(
             history=QoSHistoryPolicy.KEEP_LAST,
             depth=1,
-            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            # AMCL typically uses RELIABLE subscription for /initialpose; BEST_EFFORT can lead to no match.
+            reliability=QoSReliabilityPolicy.RELIABLE,
             durability=QoSDurabilityPolicy.VOLATILE,
         )
-        self.pub = self.create_publisher(PoseWithCovarianceStamped, "/initialpose", qos)
+        # Use relative names so namespaces can be applied via launch if needed.
+        self.pub = self.create_publisher(PoseWithCovarianceStamped, "initialpose", qos)
 
         self._amcl_pose_seen = False
-        self.create_subscription(PoseWithCovarianceStamped, "/amcl_pose", self._amcl_cb, 10)
+        self.create_subscription(PoseWithCovarianceStamped, "amcl_pose", self._amcl_cb, 10)
 
         self._start_time = time.time()
         period = 1.0 / max(self.publish_rate_hz, 0.1)
@@ -82,21 +84,23 @@ class InitialPoseFromSymovo(Node):
         self._amcl_pose_seen = True
 
     def _fetch_pose(self) -> Optional[Tuple[float, float, float]]:
-        try:
-            url = f"{self.endpoint}/v0/agv"
-            res = requests.get(url, verify=self.tls_verify, timeout=5.0)
-            res.raise_for_status()
-            arr = res.json()
-            if not isinstance(arr, list):
-                return None
-            for item in arr:
-                if item.get("id") == self.amr_id:
-                    pose = item.get("pose") or {}
-                    return float(pose.get("x", 0.0)), float(pose.get("y", 0.0)), float(pose.get("theta", 0.0))
-            return None
-        except Exception as e:
-            self.get_logger().warn(f"Failed to fetch pose from Symovo API: {e}")
-            return None
+        for path in ("/v0/amr", "/v0/agv"):
+            try:
+                url = f"{self.endpoint}{path}"
+                res = requests.get(url, verify=self.tls_verify, timeout=5.0)
+                res.raise_for_status()
+                arr = res.json()
+                if not isinstance(arr, list):
+                    continue
+                for item in arr:
+                    if item.get("id") == self.amr_id:
+                        pose = item.get("pose") or {}
+                        return float(pose.get("x", 0.0)), float(pose.get("y", 0.0)), float(pose.get("theta", 0.0))
+            except Exception:
+                continue
+
+        self.get_logger().warn("Failed to fetch pose from Symovo API: tried /v0/amr and /v0/agv")
+        return None
 
     def _publish_initialpose(self, x: float, y: float, yaw: float):
         msg = PoseWithCovarianceStamped()

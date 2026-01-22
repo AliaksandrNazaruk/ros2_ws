@@ -1,1 +1,0 @@
-/home/boris/ros2_ws/build/symovo_bridge/ament_cmake_core/symovo_bridgeConfig.cmake

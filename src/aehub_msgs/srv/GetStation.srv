@@ -1,0 +1,7 @@
+# GetStation.srv
+string id
+---
+bool success
+string message
+string station_json
+

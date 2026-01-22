@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  FastDDS profile: disable shared-memory transport (SHM) and use UDPv4 only.
+
+  Motivation:
+  - Running two ROS graphs in parallel (different ROS_DOMAIN_ID) on the same host
+    can lead to repeated RTPS_TRANSPORT_SHM "open_and_lock_file failed" issues.
+  - Disabling SHM avoids those collisions and makes startup deterministic on
+    constrained/embedded systems.
+-->
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+  <transport_descriptors>
+    <transport_descriptor>
+      <transport_id>udp_transport</transport_id>
+      <type>UDPv4</type>
+    </transport_descriptor>
+  </transport_descriptors>
+
+  <participant profile_name="participant_no_shm" is_default_profile="true">
+    <rtps>
+      <useBuiltinTransports>false</useBuiltinTransports>
+      <userTransports>
+        <transport_id>udp_transport</transport_id>
+      </userTransports>
+    </rtps>
+  </participant>
+</profiles>
+

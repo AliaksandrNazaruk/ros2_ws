@@ -1,1 +1,0 @@
-ament_cmake_symlink_install_targets("TARGET_FILES" "/home/boris/ros2_ws/build/nav2_behavior_tree/generate_nav2_tree_nodes_xml" "TARGETS" "generate_nav2_tree_nodes_xml" "DESTINATION" "lib/nav2_behavior_tree")

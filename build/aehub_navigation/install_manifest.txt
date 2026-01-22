@@ -1,6 +1,0 @@
-/home/boris/ros2_ws/install/aehub_navigation/lib/aehub_navigation/navigation_integrated_node
-/home/boris/ros2_ws/install/aehub_navigation/lib/aehub_navigation/navigation_command_handler
-/home/boris/ros2_ws/install/aehub_navigation/lib/aehub_navigation/mqtt_status_publisher
-/home/boris/ros2_ws/install/aehub_navigation/lib/aehub_navigation/initial_pose_from_symovo
-/home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/launch/symovo_nav2.launch.py
-/home/boris/ros2_ws/install/aehub_navigation/share/aehub_navigation/launch/aehub_navigation.launch.py

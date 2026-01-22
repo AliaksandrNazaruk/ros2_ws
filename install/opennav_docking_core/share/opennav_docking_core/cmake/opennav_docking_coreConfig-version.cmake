@@ -1,1 +1,0 @@
-/home/boris/ros2_ws/build/opennav_docking_core/ament_cmake_core/opennav_docking_coreConfig-version.cmake

@@ -1,0 +1,9 @@
+# ListStations.srv
+#
+# Returns JSON array of Station objects (Station-Output variants).
+#
+---
+bool success
+string message
+string stations_json
+

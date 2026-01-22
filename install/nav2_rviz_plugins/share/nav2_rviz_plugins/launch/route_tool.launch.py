@@ -1,1 +1,0 @@
-/home/boris/ros2_ws/src/navigation2/nav2_rviz_plugins/launch/route_tool.launch.py

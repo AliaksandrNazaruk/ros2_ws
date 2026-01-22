@@ -1,5 +1,0 @@
-/home/boris/ros2_ws/install/opennav_docking/lib/libopennav_docking_core.so
-/home/boris/ros2_ws/install/opennav_docking/lib/libcontroller.so
-/home/boris/ros2_ws/install/opennav_docking/lib/libpose_filter.so
-/home/boris/ros2_ws/install/opennav_docking/lib/libsimple_charging_dock.so
-/home/boris/ros2_ws/install/opennav_docking/lib/libsimple_non_charging_dock.so

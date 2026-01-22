@@ -3,7 +3,7 @@
 <package format="3">
   <name>aehub_navigation</name>
   <version>0.1.0</version>
-  <description>AE.HUB MVP Navigation - Nav2 Action Client, MQTT Adapter, Position Registry</description>
+  <description>DEPRECATED (legacy monolith): AE.HUB MVP Navigation - Nav2 Action Client, MQTT Adapter, Position Registry</description>
   <maintainer email="boris@example.com">Boris</maintainer>
   <license>Apache-2.0</license>
 

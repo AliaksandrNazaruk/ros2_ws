@@ -95,6 +95,11 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
   RENAME initial_pose_from_symovo
 )
+install(PROGRAMS
+  src/${PROJECT_NAME}/symovo_map_fetcher_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME symovo_map_fetcher
+)
 
 # Install config files
 install(DIRECTORY config/

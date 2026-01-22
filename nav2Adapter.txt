@@ -1,0 +1,313 @@
+SRS — Nav2Adapter
+
+Subsystem: Capability Layer
+Language: C++ (rclcpp)
+ROS Distribution: Jazzy / Humble+
+Status: Design-complete, implementation-ready
+
+1. Purpose & Scope
+1.1 Purpose
+
+Nav2Adapter — это тонкий, детерминированный адаптер между:
+
+Application Layer (например aehub_navigation_executor)
+
+Nav2 stack (bt_navigator, controller, planner, recovery)
+
+Адаптер инкапсулирует все знания о Nav2, предоставляя чистый, стабильный API верхнему уровню.
+
+1.2 Scope
+
+Nav2Adapter НЕ:
+
+не реализует бизнес-логику
+
+не знает про MQTT / transport
+
+не валидирует команды
+
+не делает дедупликацию
+
+не управляет FSM приложения
+
+Nav2Adapter ТОЛЬКО:
+
+отправляет навигационные цели в Nav2
+
+отменяет активную цель
+
+отслеживает результат
+
+транслирует события наверх
+
+2. Architectural Position
+┌────────────────────────────────────────┐
+│ Application Layer                      │
+│ aehub_navigation_executor              │
+│  - FSM                                 │
+│  - dedup / idempotency                 │
+│  - orchestration                       │
+└───────────────▲────────────────────────┘
+                │ clean C++ interface
+┌───────────────┴────────────────────────┐
+│ Capability Layer                       │
+│ Nav2Adapter (THIS MODULE)              │
+│  - NavigateToPose action               │
+│  - Cancel                              │
+│  - Feedback / Result                   │
+└───────────────▲────────────────────────┘
+                │ ROS actions / services
+┌───────────────┴────────────────────────┐
+│ Nav2 Stack (bt_navigator etc.)         │
+└────────────────────────────────────────┘
+
+3. Design Principles (Invariants)
+INV-01 — Adapter purity
+
+Nav2Adapter не содержит бизнес-логики.
+Он не принимает решений — только исполняет.
+
+INV-02 — Single active goal
+
+В любой момент времени не более одной активной Nav2-цели.
+
+INV-03 — Idempotent cancel
+
+Повторный cancel():
+
+не вызывает ошибку
+
+не отправляет второй cancel в Nav2
+
+возвращает корректный статус
+
+INV-04 — Thread safety
+
+Все публичные методы thread-safe.
+
+INV-05 — No ROS graph pollution
+
+Nav2Adapter:
+
+не публикует топики
+
+не создает сервисы
+
+использует только actions
+
+4. External Dependencies
+4.1 ROS / Nav2
+
+nav2_msgs::action::NavigateToPose
+
+rclcpp::Node
+
+rclcpp_action::Client
+
+4.2 TF
+
+TF используется только для валидации frame_id
+
+TF lookup НЕ обязателен для отправки цели
+
+5. Public API (C++ Interface)
+5.1 Header overview
+class Nav2Adapter
+{
+public:
+  explicit Nav2Adapter(
+    rclcpp::Node::SharedPtr node,
+    const std::string& action_name = "/navigate_to_pose"
+  );
+
+  bool is_ready() const;
+
+  bool send_goal(
+    const geometry_msgs::msg::PoseStamped& pose,
+    const std::string& command_id,
+    const std::string& target_id
+  );
+
+  bool cancel_active_goal();
+
+  void shutdown();
+};
+
+6. State Model
+6.1 Internal State
+enum class InternalState {
+  IDLE,
+  GOAL_SENT,
+  ACTIVE,
+  CANCEL_REQUESTED,
+  TERMINATED
+};
+
+6.2 State transitions
+From	Event	To
+IDLE	send_goal	GOAL_SENT
+GOAL_SENT	goal accepted	ACTIVE
+GOAL_SENT	rejected	TERMINATED
+ACTIVE	result success	TERMINATED
+ACTIVE	result aborted	TERMINATED
+ACTIVE	cancel()	CANCEL_REQUESTED
+CANCEL_REQUESTED	result canceled	TERMINATED
+TERMINATED	reset	IDLE
+7. Functional Requirements
+FR-01 — Action client lifecycle
+
+Adapter MUST wait for Nav2 action server on startup
+
+Timeout configurable (default: 5s)
+
+FR-02 — Send goal
+
+send_goal():
+
+returns false if adapter not ready
+
+returns false if another goal active
+
+sends NavigateToPose goal
+
+attaches command_id via context (not Nav2 field)
+
+FR-03 — Cancel goal
+
+cancel_active_goal():
+
+if no active goal → return true
+
+if already canceling → return true
+
+sends async cancel request
+
+FR-04 — Result handling
+
+Adapter MUST detect:
+
+SUCCEEDED
+
+ABORTED
+
+CANCELED
+
+and report them upstream via callbacks.
+
+8. Callback Interface (Upward)
+
+Nav2Adapter не публикует ROS topics.
+Он сообщает события через callbacks, зарегистрированные executor’ом.
+
+struct Nav2Callbacks {
+  std::function<void()> on_goal_accepted;
+  std::function<void()> on_goal_rejected;
+  std::function<void()> on_succeeded;
+  std::function<void()> on_aborted;
+  std::function<void()> on_canceled;
+};
+
+
+Executor передает callbacks при инициализации.
+
+9. Error Handling
+ERR-01 — Action server unavailable
+
+Adapter logs error
+
+is_ready() → false
+
+ERR-02 — Goal rejected
+
+on_goal_rejected() callback
+
+Adapter returns to IDLE
+
+ERR-03 — Unexpected result
+
+Logged as error
+
+State → TERMINATED
+
+10. Concurrency Model
+
+Internal mutex protects:
+
+current goal handle
+
+internal state
+
+Action callbacks may run on executor threads
+
+No blocking calls in callbacks
+
+11. Performance Requirements
+
+No heap allocations in hot paths after init
+
+No dynamic string building in callbacks
+
+One action client instance per adapter
+
+12. Testability Requirements
+Unit tests
+
+State transitions
+
+Cancel idempotency
+
+Double send_goal rejection
+
+Integration tests
+
+With real Nav2 stack
+
+Navigate → cancel → navigate
+
+13. Explicit Non-Goals
+
+Nav2Adapter WILL NOT:
+
+manage lifecycle of Nav2 nodes
+
+load maps
+
+set initial pose
+
+manage costmaps
+
+implement retries or recovery logic
+
+14. Versioning
+
+Adapter API is stable
+
+Changes require major version bump
+
+Nav2 changes must be absorbed internally
+
+15. Implementation Checklist (for AI agent)
+
+ nav2_adapter.hpp
+
+ nav2_adapter.cpp
+
+ RAII shutdown
+
+ Action client wait logic
+
+ Full state machine
+
+ Thread-safe callbacks
+
+ Minimal logging (INFO/ERROR)
+
+16. Architectural Verdict
+
+Это канонический Nav2 adapter, соответствующий:
+
+ROS 2 best practices
+
+Autoware / Apex.AI style
+
+Production-grade AGV/AMR архитектуре

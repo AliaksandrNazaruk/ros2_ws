@@ -1,1 +1,0 @@
-/home/boris/ros2_ws/build/nav2_msgs/rosidl_generator_cpp/nav2_msgs/srv/detail/dynamic_edges__struct.hpp

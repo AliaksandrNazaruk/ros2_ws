@@ -28,6 +28,35 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+# region agent log
+def _agent_log(*, run_id: str, hypothesis_id: str, location: str, message: str, data: dict):
+    try:
+        import json as _json
+        import time as _time
+
+        os.makedirs("/home/boris/ros2_ws/.cursor", exist_ok=True)
+        with open("/home/boris/ros2_ws/.cursor/debug.log", "a", encoding="utf-8") as f:
+            f.write(
+                _json.dumps(
+                    {
+                        "sessionId": "debug-session",
+                        "runId": run_id,
+                        "hypothesisId": hypothesis_id,
+                        "location": location,
+                        "message": message,
+                        "data": data,
+                        "timestamp": int(_time.time() * 1000),
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+    except Exception:
+        pass
+
+
+# endregion agent log
+
 
 class SymovoMapLoader:
     """Loads map from Symovo API and converts to Nav2 format."""
@@ -46,7 +75,7 @@ class SymovoMapLoader:
         self.tls_verify = tls_verify
         self.map_data: Optional[Dict[str, Any]] = None
         
-    def fetch_map_info(self) -> Optional[Dict[str, Any]]:
+    def fetch_map_info(self, *, map_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """
         Fetch map information from Symovo API.
         
@@ -56,6 +85,15 @@ class SymovoMapLoader:
         try:
             url = f"{self.endpoint}/v0/map"
             logger.info(f"Fetching map info from {url}")
+            # region agent log
+            _agent_log(
+                run_id="pre-fix",
+                hypothesis_id="H6",
+                location="symovo_map_loader.py:fetch_map_info",
+                message="GET /v0/map",
+                data={"url": url, "map_id_override": map_id, "tls_verify": self.tls_verify},
+            )
+            # endregion agent log
             
             response = requests.get(url, verify=self.tls_verify, timeout=10)
             response.raise_for_status()
@@ -65,9 +103,39 @@ class SymovoMapLoader:
                 logger.error("No maps found in API response")
                 return None
             
-            # Get first map (or find by ID if needed)
-            map_info = maps[0]
+            if map_id is not None:
+                map_info = next((m for m in maps if m.get("id") == map_id), None)
+                if not map_info:
+                    logger.error(f"Map id={map_id} not found in /v0/map list")
+                    # region agent log
+                    _agent_log(
+                        run_id="pre-fix",
+                        hypothesis_id="H6",
+                        location="symovo_map_loader.py:fetch_map_info",
+                        message="Requested map_id not found in /v0/map list",
+                        data={"map_id": map_id, "map_ids": [m.get("id") for m in maps[:10]]},
+                    )
+                    # endregion agent log
+                    return None
+            else:
+                # Fallback: first map
+                map_info = maps[0]
             logger.info(f"Found map: id={map_info.get('id')}, name={map_info.get('name')}")
+            # region agent log
+            _agent_log(
+                run_id="pre-fix",
+                hypothesis_id="H6",
+                location="symovo_map_loader.py:fetch_map_info",
+                message="Selected map",
+                data={
+                    "selected_id": map_info.get("id"),
+                    "name": map_info.get("name"),
+                    "offsetX": map_info.get("offsetX"),
+                    "offsetY": map_info.get("offsetY"),
+                    "resolution": map_info.get("resolution"),
+                },
+            )
+            # endregion agent log
             
             self.map_data = map_info
             return map_info
@@ -99,9 +167,27 @@ class SymovoMapLoader:
             # Fetch PNG image from API
             url = f"{self.endpoint}/v0/map/{map_id}/full.png"
             logger.info(f"Fetching map image from {url}")
+            # region agent log
+            _agent_log(
+                run_id="pre-fix",
+                hypothesis_id="H7",
+                location="symovo_map_loader.py:fetch_map_image",
+                message="GET /v0/map/{id}/full.png",
+                data={"url": url, "map_id": map_id, "tls_verify": self.tls_verify},
+            )
+            # endregion agent log
             
             response = requests.get(url, verify=self.tls_verify, timeout=30)
             response.raise_for_status()
+            # region agent log
+            _agent_log(
+                run_id="pre-fix",
+                hypothesis_id="H7",
+                location="symovo_map_loader.py:fetch_map_image",
+                message="Received map image bytes",
+                data={"status_code": response.status_code, "bytes": len(response.content)},
+            )
+            # endregion agent log
             
             # Load image from response bytes
             from io import BytesIO
@@ -160,7 +246,7 @@ class SymovoMapLoader:
             logger.error(f"Failed to convert to PGM: {e}")
             return False
     
-    def create_yaml(self, pgm_path: str, output_path: str) -> bool:
+    def create_yaml(self, pgm_path: str, output_path: str, *, write_absolute_image_path: bool) -> bool:
         """
         Create YAML file for Nav2 map_server.
         
@@ -182,11 +268,11 @@ class SymovoMapLoader:
             offset_y = self.map_data.get('offsetY', 0.0)
             size = self.map_data.get('size', [100, 100])
             
-            # Get absolute path to PGM file
-            pgm_abs_path = os.path.abspath(pgm_path)
+            # Prefer relative image path for portability.
+            image_path = os.path.abspath(pgm_path) if write_absolute_image_path else os.path.basename(pgm_path)
             
             # Create YAML content
-            yaml_content = f"""image: {pgm_abs_path}
+            yaml_content = f"""image: {image_path}
 resolution: {resolution}
 origin: [{offset_x}, {offset_y}, 0.0]
 negate: 0
@@ -208,7 +294,66 @@ free_thresh: 0.196
             logger.error(f"Failed to create YAML: {e}")
             return False
     
-    def load_map(self, output_dir: str) -> Optional[str]:
+    def _select_map_id_from_robot_pose(self) -> Optional[int]:
+        """
+        Try to select active map id from robot pose.
+        Prefer /v0/amr (documented), fallback to /v0/agv (observed on some deployments).
+        Expected schema: item.pose.map_id (best-effort; returns None if not available).
+        """
+        for path in ("/v0/amr", "/v0/agv"):
+            try:
+                url = f"{self.endpoint}{path}"
+                # region agent log
+                _agent_log(
+                    run_id="pre-fix",
+                    hypothesis_id="H8",
+                    location="symovo_map_loader.py:_select_map_id_from_robot_pose",
+                    message="GET robot list to infer pose.map_id",
+                    data={"url": url, "amr_id": self.amr_id, "tls_verify": self.tls_verify},
+                )
+                # endregion agent log
+                response = requests.get(url, verify=self.tls_verify, timeout=10)
+                response.raise_for_status()
+                arr = response.json()
+                if not isinstance(arr, list):
+                    continue
+                for item in arr:
+                    if item.get("id") == self.amr_id:
+                        pose = item.get("pose") or {}
+                        map_id = pose.get("map_id")
+                        if map_id is None:
+                            # region agent log
+                            _agent_log(
+                                run_id="pre-fix",
+                                hypothesis_id="H8",
+                                location="symovo_map_loader.py:_select_map_id_from_robot_pose",
+                                message="pose.map_id missing for amr_id",
+                                data={"path": path, "pose_keys": list(pose.keys())[:20]},
+                            )
+                            # endregion agent log
+                            return None
+                        # region agent log
+                        _agent_log(
+                            run_id="pre-fix",
+                            hypothesis_id="H8",
+                            location="symovo_map_loader.py:_select_map_id_from_robot_pose",
+                            message="Selected map_id from robot pose",
+                            data={"path": path, "map_id": int(map_id)},
+                        )
+                        # endregion agent log
+                        return int(map_id)
+            except Exception:
+                continue
+        return None
+
+    def load_map(
+        self,
+        output_dir: str,
+        *,
+        map_id: Optional[int] = None,
+        select_map_mode: str = "robot_pose",
+        write_absolute_image_path: bool = False,
+    ) -> Optional[str]:
         """
         Load map from Symovo API and save to Nav2 format.
         
@@ -221,8 +366,25 @@ free_thresh: 0.196
         # Create output directory
         os.makedirs(output_dir, exist_ok=True)
         
+        selected_map_id: Optional[int] = map_id
+        if selected_map_id is None and select_map_mode == "robot_pose":
+            selected_map_id = self._select_map_id_from_robot_pose()
+            if selected_map_id is not None:
+                logger.info(f"Selected map_id from robot pose: {selected_map_id}")
+            else:
+                logger.warning("Failed to detect map_id from robot pose; falling back to first map")
+        # region agent log
+        _agent_log(
+            run_id="pre-fix",
+            hypothesis_id="H9",
+            location="symovo_map_loader.py:load_map",
+            message="load_map selected map id",
+            data={"selected_map_id": selected_map_id, "select_map_mode": select_map_mode},
+        )
+        # endregion agent log
+
         # Fetch map info
-        if not self.fetch_map_info():
+        if not self.fetch_map_info(map_id=selected_map_id):
             return None
         
         # Fetch image from API
@@ -237,7 +399,7 @@ free_thresh: 0.196
         
         # Save YAML
         yaml_path = os.path.join(output_dir, 'map.yaml')
-        if not self.create_yaml(pgm_path, yaml_path):
+        if not self.create_yaml(pgm_path, yaml_path, write_absolute_image_path=write_absolute_image_path):
             return None
         
         logger.info(f"Map loaded successfully: {yaml_path}")

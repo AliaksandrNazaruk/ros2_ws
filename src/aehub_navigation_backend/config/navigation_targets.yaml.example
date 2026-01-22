@@ -1,0 +1,11 @@
+# target_id -> Symovo station_id mapping (MVP: 5 predefined targets).
+#
+# Fill station_id values with existing Symovo Station IDs.
+#
+targets:
+  position_A: "CHANGE_ME_STATION_ID_A"
+  position_B: "CHANGE_ME_STATION_ID_B"
+  position_C: "CHANGE_ME_STATION_ID_C"
+  position_D: "CHANGE_ME_STATION_ID_D"
+  position_E: "CHANGE_ME_STATION_ID_E"
+

@@ -1,1 +1,0 @@
-/home/boris/ros2_ws/build/nav2_msgs/rosidl_generator_c/nav2_msgs/msg/detail/collision_monitor_state__type_support.h

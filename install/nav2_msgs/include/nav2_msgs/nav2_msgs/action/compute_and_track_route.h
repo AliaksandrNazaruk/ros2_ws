@@ -1,1 +1,0 @@
-/home/boris/ros2_ws/build/nav2_msgs/rosidl_generator_c/nav2_msgs/action/compute_and_track_route.h

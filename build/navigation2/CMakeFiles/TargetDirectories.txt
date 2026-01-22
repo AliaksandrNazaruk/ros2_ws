@@ -1,9 +1,0 @@
-/home/boris/ros2_ws/build/navigation2/CMakeFiles/uninstall.dir
-/home/boris/ros2_ws/build/navigation2/CMakeFiles/navigation2_uninstall.dir
-/home/boris/ros2_ws/build/navigation2/CMakeFiles/test.dir
-/home/boris/ros2_ws/build/navigation2/CMakeFiles/edit_cache.dir
-/home/boris/ros2_ws/build/navigation2/CMakeFiles/rebuild_cache.dir
-/home/boris/ros2_ws/build/navigation2/CMakeFiles/list_install_components.dir
-/home/boris/ros2_ws/build/navigation2/CMakeFiles/install.dir
-/home/boris/ros2_ws/build/navigation2/CMakeFiles/install/local.dir
-/home/boris/ros2_ws/build/navigation2/CMakeFiles/install/strip.dir

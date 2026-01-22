@@ -1,1 +1,0 @@
-/home/boris/ros2_ws/src/navigation2/nav2_behavior_tree/include/nav2_behavior_tree/plugins/decorator/path_longer_on_approach.hpp

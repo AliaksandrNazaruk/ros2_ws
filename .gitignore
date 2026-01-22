@@ -2,6 +2,7 @@
 build/
 install/
 log/
+logs/
 
 # Python
 __pycache__/
@@ -53,3 +54,7 @@ debug.log
 
 # Generated runtime artifacts (keep out of git)
 maps/
+
+# Certificates / keys (never commit secrets)
+ca.crt
+*.key

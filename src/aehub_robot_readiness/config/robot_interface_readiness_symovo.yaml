@@ -1,0 +1,38 @@
+base_controller:
+  ros__parameters:
+    # Symovo connection
+    driver_endpoint: "https://192.168.1.100"
+    amr_id: 15
+    tls_verify: false
+
+    # Robot state mirror topic (relative; namespaced via launch)
+    robot_status_topic: "robot/status"
+    robot_status_publish_hz: 5.0
+
+    # Symovo safety mapping from OpenAPI (hardware_api.json)
+    # The driver caches one AMR object (selected by amr_id), so paths are relative to that object.
+    # You can use dot-path or JSON-pointer.
+    symovo_motors_enabled_path: "state_flags.drive_ready"
+    symovo_motors_enabled_invert: false
+
+    # Conservative mapping: true after e-stop was pressed and needs reset.
+    symovo_estop_active_path: "state_flags.emergency_stop_reset_request"
+    symovo_estop_active_invert: false
+
+    # If true, RobotStatus safety fields must be extractable from JSON; otherwise driver_connected=false.
+    symovo_status_json_required: true
+
+    # Optional debug
+    symovo_raw_json_log_enabled: false
+    symovo_raw_json_log_period_s: 5.0
+
+robot_readiness_monitor:
+  ros__parameters:
+    publish_period_s: 0.5
+    health_topic: "health/robot_readiness"
+    log_on_change: true
+
+    # Parameters consumed by SafetyWatcher inside RobotReadinessGate
+    robot_status_topic: "robot/status"
+    robot_status_stale_timeout_s: 1.0
+

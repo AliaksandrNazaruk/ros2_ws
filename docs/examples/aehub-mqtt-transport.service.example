@@ -1,0 +1,60 @@
+# /etc/systemd/system/aehub-mqtt-transport.service
+#
+# AE.HUB MQTT Transport Service
+# 
+# Transport layer between ROS2 and MQTT broker.
+# Depends on aehub-broker-credentials.service for broker configuration.
+#
+# Dependencies:
+#   - /etc/aehub/aehub_stack.env (must contain AEHUB_ROBOT_ID)
+#   - aehub-broker-credentials.service (must be running)
+#   - ROS2 workspace built and installed
+#
+# Usage:
+#   sudo cp docs/examples/aehub-mqtt-transport.service.example /etc/systemd/system/aehub-mqtt-transport.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable aehub-mqtt-transport.service
+#   sudo systemctl start aehub-mqtt-transport.service
+#
+# Security:
+#   - /etc/aehub/aehub_stack.env must have restricted permissions (chmod 640, owned by root)
+#   - Service runs as non-root user (adjust User/Group as needed)
+
+[Unit]
+Description=AE.HUB MQTT Transport (ROS2 &lt;-&gt; MQTT)
+Documentation=https://github.com/your-org/aehub
+After=network-online.target aehub-broker-credentials.service
+Requires=aehub-broker-credentials.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=boris
+Group=boris
+
+# Load environment variables (systemd automatically exports them)
+EnvironmentFile=/etc/aehub/aehub_stack.env
+
+# ROS2 setup and launch
+ExecStart=/bin/bash -lc '\
+  source /opt/ros/jazzy/setup.bash && \
+  source /home/boris/ros2_ws/install/setup.bash && \
+  ros2 launch aehub_mqtt_transport mqtt_transport.launch.py \
+'
+
+# Restart policy
+Restart=always
+RestartSec=3
+TimeoutStopSec=10
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aehub-mqtt-transport
+
+[Install]
+WantedBy=multi-user.target

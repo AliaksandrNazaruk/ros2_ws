@@ -1,1 +1,0 @@
-ament_cmake_symlink_install_targets("TARGET_FILES" "/home/boris/ros2_ws/build/opennav_docking/test/libtest_dock.so" "TARGETS" "test_dock" "ARCHIVE_DESTINATION" "lib" "LIBRARY_DESTINATION" "lib" "RUNTIME_DESTINATION" "lib/opennav_docking")

@@ -1,1 +1,0 @@
-/home/boris/ros2_ws/src/symovo_bridge/launch/symovo_bridge.launch.py
