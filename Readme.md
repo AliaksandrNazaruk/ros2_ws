@@ -1,7 +1,7 @@
-### AEHub MQTT-Controlled Navigation Stack (Production Specification)
+### MQTT-Controlled Navigation Stack (Production Specification)
 
 ### 1) Purpose
-This document specifies the **production** AEHub stack that enables robot navigation control over MQTT, backed by ROS 2 and a **replaceable navigation backend**.
+This document specifies the **production** stack that enables robot navigation control over MQTT, backed by ROS 2 and a **replaceable navigation backend**.
 
 **Goals**
 - Accept navigation commands via MQTT and execute them via Nav2.
@@ -49,7 +49,7 @@ This document specifies the **production** AEHub stack that enables robot naviga
 
 ### 2.2 Optional admin node: Station Adapter (positions management)
 
-If the deployment allows editing stations on the machine, AEHub can run an **admin/ops** node to manage Symovo Stations:
+If the deployment allows editing stations on the machine, can run an **admin/ops** node to manage Symovo Stations:
 - **Package**: `aehub_station_adapter`
 - **Node**: `station_adapter` (Lifecycle)
 - **API**: Symovo Station CRUD
@@ -132,7 +132,7 @@ The executor depends on this action contract. The **implementation is replaceabl
 #### 3.3.2 Profile A implementation: `aehub_nav2_capability_server`
 **Type**: Lifecycle node  
 **Responsibility**
-- Bridge AEHub goals to Nav2 (`/navigate_to_pose`) and map Nav2 outcome back to AEHub.
+- Bridge goals to Nav2 (`/navigate_to_pose`) and map Nav2 outcome back to AEHub.
 - Use ROS-based readiness gating (Nav2 lifecycle/action/TF evidence + robot interface evidence).
 
 #### 3.3.3 Profile B implementation: `navigation_backend_server` (`aehub_navigation_backend`)
@@ -182,7 +182,7 @@ This is required for safety gating and readiness decisions.
 
 ### 4.1 Actions
 
-#### 4.1.1 AEHub capability action
+#### 4.1.1 Module capability action
 - **Name**: `capabilities/navigation/execute`
 - **Type**: `aehub_msgs/action/NavigationExecute`
 - **Fields (conceptual)**
