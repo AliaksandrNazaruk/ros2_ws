@@ -1,0 +1,9 @@
+# UpdateStation.srv
+string id
+# station_json must be a Station-Input JSON object (name, pose, state required).
+string station_json
+---
+bool success
+string message
+string station_json
+

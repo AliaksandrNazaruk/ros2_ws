@@ -1,0 +1,60 @@
+# ROS2 build and install directories
+build/
+install/
+log/
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+/tmp/
+
+# Debug files
+.cursor/
+debug.log
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*.backup_*
+.pytest_cache/
+
+# MQTT debug logs
+/tmp/mqtt_chain_debug_*.log
+
+# Node logs
+/tmp/nav_node.log
+
+# Generated runtime artifacts (keep out of git)
+maps/
+
+# Certificates / keys (never commit secrets)
+ca.crt
+*.key

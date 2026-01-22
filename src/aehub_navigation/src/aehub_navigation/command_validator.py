@@ -14,315 +14,279 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""aehub_navigation.command_validator
+
+This module validates incoming MQTT navigation commands.
+
+Canonical v2.0 note
+-------------------
+`schema_version` and `robot_id` are required and must match the expected major
+version and configured robot_id.
+- For navigateTo: requires either `target_id` (must exist in PositionRegistry)
+  OR a direct pose: `x` and `y` (and optional `theta`).
+- For cancel: requires only `command_id` and `timestamp`.
+
+Deduplication
+-------------
+Validation should *not* permanently mark a command as processed. The caller
+(NavigationIntegratedNode) decides when a command becomes terminal.
+This class provides a lightweight TTL-based processed-id cache for idempotency.
 """
-Command Validator
 
-Validates navigation commands with comprehensive checks:
-- Format validation (JSON schema)
-- Required fields validation (command_id, timestamp, target_id, priority)
-- UUID v4 format validation for command_id
-- Duplicate command_id detection (in-memory set with TTL)
-
-AE.HUB MVP: Ensures command integrity before processing.
-
-NOTE: This is a pure Python module, NOT a ROS2 Node.
-Thread-safe for concurrent access.
-"""
+from __future__ import annotations
 
 import re
-import sys
 import threading
 import time
-import math
-from typing import Optional, Tuple, Dict
+from datetime import datetime
+from typing import Any, Dict, Optional, Tuple
+
+
+_UUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+)
 
 
 class CommandValidator:
-    """
-    Validates navigation commands and manages duplicate detection.
-    
-    Thread-safe implementation using locks for concurrent access.
-    Uses TTL-based cleanup for processed command IDs.
-    """
-    
+    """Validate and deduplicate commands."""
+
     def __init__(self, max_processed_ids: int = 1000, ttl_seconds: int = 3600):
-        """
-        Initialize command validator.
-        
-        Args:
-            max_processed_ids: Maximum number of processed IDs to keep in memory
-            ttl_seconds: Time-to-live for processed IDs (seconds)
-        """
-        self._max_processed_ids = max_processed_ids
-        self._ttl_seconds = ttl_seconds
-        
-        # Thread-safe storage for processed command IDs
-        # Dict: command_id -> timestamp (when it was processed)
-        self._processed_command_ids: Dict[str, float] = {}
+        self._max_processed_ids = int(max_processed_ids)
+        self._ttl_seconds = int(ttl_seconds)
+
+        # command_id -> first_seen_epoch_s
+        self._processed: Dict[str, float] = {}
         self._lock = threading.Lock()
-        
-        # UUID v4 pattern (8-4-4-4-12 hex digits)
-        self._uuid_pattern = re.compile(
-            r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
-            re.IGNORECASE
-        )
-        
-        # ISO-8601 timestamp pattern
-        self._iso8601_pattern = re.compile(
-            r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$'
-        )
-    
+
+    # ---------------------------------------------------------------------
+    # Public: processed-id cache (idempotency)
+    # ---------------------------------------------------------------------
+
+    def is_duplicate(self, command_id: str, now_s: Optional[float] = None) -> bool:
+        if not command_id:
+            return False
+        if now_s is None:
+            now_s = time.time()
+        self._prune(now_s)
+        with self._lock:
+            return command_id in self._processed
+
+    def mark_processed(self, command_id: str, now_s: Optional[float] = None) -> None:
+        if not command_id:
+            return
+        if now_s is None:
+            now_s = time.time()
+        self._prune(now_s)
+        with self._lock:
+            self._processed[command_id] = now_s
+            # Cap size (remove oldest)
+            if len(self._processed) > self._max_processed_ids:
+                items = sorted(self._processed.items(), key=lambda kv: kv[1])
+                for k, _ in items[: max(1, len(items) - self._max_processed_ids)]:
+                    self._processed.pop(k, None)
+
+    # ---------------------------------------------------------------------
+    # Public: validation API (backward compatible)
+    # ---------------------------------------------------------------------
+
     def validate_command(
         self,
-        command: dict,
-        position_registry=None,
+        command: Dict[str, Any],
+        position_registry: Any,
         expected_robot_id: Optional[str] = None,
+        command_type: Optional[str] = None,
     ) -> Tuple[bool, Optional[str]]:
-        """
-        Validate navigation command with comprehensive checks.
-        
-        Args:
-            command: Command dictionary to validate
-            position_registry: Optional PositionRegistry to validate target_id existence
-        
+        """Backward compatible wrapper.
+
         Returns:
-            Tuple of (is_valid, error_message)
-            - is_valid: True if command is valid, False otherwise
-            - error_message: Error message if validation failed, None if valid
+            (ok, error_message)
         """
-        # Type check
+        ok, _code, msg = self.validate_command_detailed(
+            command=command,
+            position_registry=position_registry,
+            expected_robot_id=expected_robot_id,
+            command_type=command_type,
+        )
+        return ok, msg
+
+    def validate_command_detailed(
+        self,
+        command: Dict[str, Any],
+        position_registry: Any,
+        expected_robot_id: Optional[str] = None,
+        command_type: Optional[str] = None,
+    ) -> Tuple[bool, str, Optional[str]]:
+        """Validate a command.
+
+        Args:
+            command: Parsed JSON payload (dict)
+            position_registry: PositionRegistry
+            expected_robot_id: robot_id derived from topic / node config
+            command_type: 'navigateTo' | 'cancel' | None (auto)
+
+        Returns:
+            (ok, error_code, error_message)
+        """
         if not isinstance(command, dict):
-            return (False, f'Command must be a dictionary, got {type(command).__name__}')
-        
-        # Size limit check (prevent DoS)
-        command_size = sys.getsizeof(command)
-        max_command_size = 10 * 1024  # 10 KB limit
-        if command_size > max_command_size:
-            return (False, f'Command too large: {command_size} bytes (max: {max_command_size})')
-        
-        # Check for required fields (SPECIFICATION.md Section 3.1 / 3.3 common fields)
-        #
-        # We allow a reserved `target_id="__pose__"` for direct pose mode, but `target_id` is still required.
-        required_fields = ['schema_version', 'robot_id', 'command_id', 'timestamp', 'priority', 'target_id']
-        for field in required_fields:
-            if field not in command:
-                return (False, f'Missing required field: {field}')
+            return False, "NAV_INVALID_COMMAND", "payload must be a JSON object"
 
-        # schema_version
-        schema_version = command.get('schema_version')
-        if not isinstance(schema_version, str):
-            return (False, f'schema_version must be a string, got {type(schema_version).__name__}')
-        if schema_version != '1.0':
-            return (False, f'Unsupported schema_version: {schema_version} (expected: 1.0)')
+        # Detect command type if not supplied
+        ct = (command_type or command.get("type") or "").strip()
+        if not ct:
+            # Heuristic: navigate if target_id or x/y exist
+            if "target_id" in command or ("x" in command and "y" in command):
+                ct = "navigateTo"
+            else:
+                ct = "cancel"  # safest default
 
-        # robot_id
-        robot_id = command.get('robot_id')
-        if not isinstance(robot_id, str):
-            return (False, f'robot_id must be a string, got {type(robot_id).__name__}')
-        if len(robot_id) == 0:
-            return (False, 'robot_id cannot be empty')
-        if len(robot_id) > 128:
-            return (False, f'robot_id too long: {len(robot_id)} characters (max: 128)')
-        if expected_robot_id and robot_id != expected_robot_id:
-            return (False, f'robot_id mismatch: got {robot_id}, expected {expected_robot_id}')
-        
-        # Validate command_id (UUID v4 format)
-        command_id = command.get('command_id', '')
-        if not isinstance(command_id, str):
-            return (False, f'command_id must be a string, got {type(command_id).__name__}')
-        if len(command_id) == 0:
-            return (False, 'command_id cannot be empty')
-        if len(command_id) > 128:  # Reasonable UUID length limit
-            return (False, f'command_id too long: {len(command_id)} characters (max: 128)')
-        
-        if not self._uuid_pattern.match(command_id):
-            return (False, f'command_id must be a valid UUID v4 format, got: {command_id[:50]}')
-        
-        # Check for duplicate command_id (thread-safe)
-        if self.is_duplicate(command_id):
-            return (False, f'Duplicate command_id: {command_id}. This command has already been processed.')
-        
-        # Validate timestamp (ISO-8601 format)
-        timestamp = command.get('timestamp', '')
-        if not isinstance(timestamp, str):
-            return (False, f'timestamp must be a string, got {type(timestamp).__name__}')
-        if len(timestamp) == 0:
-            return (False, 'timestamp cannot be empty')
-        if len(timestamp) > 64:  # Reasonable ISO-8601 length limit
-            return (False, f'timestamp too long: {len(timestamp)} characters (max: 64)')
-        
-        if not self._iso8601_pattern.match(timestamp):
-            return (False, f'timestamp must be in ISO-8601 format, got: {timestamp[:50]}')
-        
-        # Validate target_id (required)
-        target_id = command.get('target_id', '')
-        if target_id is None:
-            return (False, 'target_id cannot be null')
-        if not isinstance(target_id, str):
-            return (False, f'target_id must be a string, got {type(target_id).__name__}')
-        if len(target_id) == 0:
-            return (False, 'target_id cannot be empty')
-        if len(target_id) > 64:  # Reasonable position ID length
-            return (False, f'target_id too long: {len(target_id)} characters (max: 64)')
-        
-        # Check for injection patterns (basic)
-        if not re.match(r'^[a-zA-Z0-9_]+$', target_id):
-            return (False, f'target_id contains invalid characters (only alphanumeric and underscore allowed): {target_id}')
-        
-        # Reserved direct pose selector
-        has_xy = ('x' in command) and ('y' in command)
-        if target_id == '__pose__':
-            if not has_xy:
-                return (False, 'target_id="__pose__" requires x and y coordinates')
-        else:
-            if not isinstance(target_id, str):
-                return (False, f'target_id must be a string, got {type(target_id).__name__}')
-            if len(target_id) == 0:
-                return (False, 'target_id cannot be empty')
-            if len(target_id) > 64:  # Reasonable position ID length
-                return (False, f'target_id too long: {len(target_id)} characters (max: 64)')
-            
-            # Check for injection patterns (basic)
-            if not re.match(r'^[a-zA-Z0-9_]+$', target_id):
-                return (False, f'target_id contains invalid characters (only alphanumeric and underscore allowed): {target_id}')
-            
-            # Check if target_id exists in registry (if provided)
-            if position_registry is not None:
-                if not position_registry.hasPosition(target_id):
-                    return (False, f'Unknown target_id: {target_id}')
-        
-        # Validate direct pose (if present)
-        if has_xy:
-            x = command.get('x')
-            y = command.get('y')
-            if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
-                return (False, 'x and y must be numbers')
-            if math.isnan(float(x)) or math.isnan(float(y)):
-                return (False, 'x and y must not be NaN')
-            if abs(float(x)) > 1e6 or abs(float(y)) > 1e6:
-                return (False, 'x/y out of bounds (abs > 1e6) - refusing command')
-            
-            # Optional orientation (radians)
-            theta = command.get('theta', command.get('yaw', None))
-            if theta is not None:
-                if not isinstance(theta, (int, float)):
-                    return (False, 'theta/yaw must be a number (radians)')
-                if math.isnan(float(theta)):
-                    return (False, 'theta/yaw must not be NaN')
-                if abs(float(theta)) > 1e9:
-                    return (False, 'theta/yaw out of bounds (abs > 1e9) - refusing command')
-            
-            # Optional frame_id
-            frame_id = command.get('frame_id', None)
-            if frame_id is not None:
-                if not isinstance(frame_id, str):
-                    return (False, f'frame_id must be a string, got {type(frame_id).__name__}')
-                if len(frame_id) == 0 or len(frame_id) > 64:
-                    return (False, 'frame_id must be 1..64 characters')
-                # Basic ROS frame id validation
-                if not re.match(r'^[A-Za-z][A-Za-z0-9_/]*$', frame_id):
-                    return (False, f'frame_id contains invalid characters: {frame_id}')
-        
-        # Validate priority
-        priority = command.get('priority', 'normal')
+        # Common fields
+        ok, code, msg = self._validate_common(command, expected_robot_id=expected_robot_id)
+        if not ok:
+            return ok, code, msg
+
+        if ct == "navigateTo":
+            return self._validate_navigate(command, position_registry)
+        if ct == "cancel":
+            return self._validate_cancel(command)
+
+        # Unknown command type
+        return False, "NAV_INVALID_COMMAND", f"unsupported command type: {ct}"
+
+    # ---------------------------------------------------------------------
+    # Internal validation
+    # ---------------------------------------------------------------------
+
+    def _validate_common(
+        self,
+        command: Dict[str, Any],
+        expected_robot_id: Optional[str],
+        require_timestamp: bool = True,
+    ) -> Tuple[bool, str, Optional[str]]:
+        # Canonical schema version check (MAJOR must match).
+        schema_version = command.get("schema_version")
+        if not isinstance(schema_version, str) or not schema_version.strip():
+            return False, "INVALID_SCHEMA", "missing or invalid schema_version"
+        major, _minor = self._parse_schema_version(schema_version.strip())
+        if major is None:
+            return False, "INVALID_SCHEMA", "schema_version must be MAJOR.MINOR"
+        if major != 2:
+            return False, "INVALID_SCHEMA", f"unsupported schema_version major={major}"
+
+        command_id = command.get("command_id")
+        if not isinstance(command_id, str) or not command_id:
+            return False, "NAV_INVALID_COMMAND", "missing or invalid command_id"
+        if not _UUID_RE.match(command_id):
+            return False, "NAV_INVALID_COMMAND", "command_id must be a UUID"
+
+        # Canonical v2.0 requires robot_id and validates it against expected_robot_id.
+        rid = command.get("robot_id")
+        if not isinstance(rid, str) or not rid.strip():
+            return False, "NAV_INVALID_COMMAND", "missing or invalid robot_id"
+        if expected_robot_id is not None and rid.strip() != expected_robot_id:
+            return False, "ROBOT_ID_MISMATCH", "robot_id does not match configured robot_id"
+
+        if require_timestamp:
+            ts = command.get("timestamp")
+            if not isinstance(ts, str) or not ts:
+                return False, "NAV_INVALID_COMMAND", "missing or invalid timestamp"
+            if not self._is_iso8601(ts):
+                return False, "NAV_INVALID_COMMAND", "timestamp must be ISO8601/RFC3339"
+
+        return True, "ok", None
+
+    def _validate_navigate(self, command: Dict[str, Any], position_registry: Any) -> Tuple[bool, str, Optional[str]]:
+        # Priority: optional in mqtt.txt, default to normal
+        priority = command.get("priority", "normal")
+        if priority is None:
+            priority = "normal"
         if not isinstance(priority, str):
-            return (False, f'priority must be a string, got {type(priority).__name__}')
-        # AE.HUB MVP: low priority is FORBIDDEN
-        valid_priorities = ['normal', 'high', 'emergency']
-        if priority not in valid_priorities:
-            return (False, f'Invalid priority: {priority}. Must be one of: {", ".join(valid_priorities)}')
-        
-        # Check for unexpected fields (warn but don't fail)
-        allowed_fields = required_fields + [
-            'x', 'y', 'theta', 'yaw', 'frame_id',
-            'reason',  # reason is optional for cancel
-        ]
-        unexpected_fields = [f for f in command.keys() if f not in allowed_fields]
-        if unexpected_fields:
-            # Note: We don't have logger here, so we just ignore unexpected fields
-            pass
-        
-        return (True, None)
-    
-    def is_duplicate(self, command_id: str) -> bool:
-        """
-        Check if command_id has already been processed.
-        
-        Args:
-            command_id: Command ID to check
-        
-        Returns:
-            True if duplicate, False otherwise
-        """
-        with self._lock:
-            return command_id in self._processed_command_ids
-    
-    def mark_as_processed(self, command_id: str):
-        """
-        Mark command_id as processed (after successful validation and acceptance).
-        
-        Args:
-            command_id: Command ID to mark as processed
-        """
-        with self._lock:
-            current_time = time.time()
-            self._processed_command_ids[command_id] = current_time
-            
-            # Cleanup if set grows too large
-            if len(self._processed_command_ids) > self._max_processed_ids:
-                self._cleanup_expired_internal(current_time)
-    
-    def cleanup_expired(self):
-        """
-        Clean up expired command IDs based on TTL.
-        Should be called periodically to prevent memory leaks.
-        """
-        with self._lock:
-            current_time = time.time()
-            self._cleanup_expired_internal(current_time)
-    
-    def _cleanup_expired_internal(self, current_time: float):
-        """
-        Internal cleanup method (assumes lock is already held).
-        
-        Args:
-            current_time: Current timestamp for TTL calculation
-        """
-        # Remove expired entries (older than TTL)
-        expired_ids = [
-            cmd_id for cmd_id, timestamp in self._processed_command_ids.items()
-            if (current_time - timestamp) > self._ttl_seconds
-        ]
-        
-        for cmd_id in expired_ids:
-            del self._processed_command_ids[cmd_id]
-        
-        # If still too large, remove oldest entries
-        if len(self._processed_command_ids) > self._max_processed_ids:
-            sorted_items = sorted(
-                self._processed_command_ids.items(),
-                key=lambda x: x[1]  # Sort by timestamp
-            )
-            # Remove oldest half
-            ids_to_remove = [cmd_id for cmd_id, _ in sorted_items[:self._max_processed_ids // 2]]
-            for cmd_id in ids_to_remove:
-                del self._processed_command_ids[cmd_id]
-    
-    def get_processed_count(self) -> int:
-        """
-        Get current number of processed command IDs.
-        
-        Returns:
-            Number of processed command IDs
-        """
-        with self._lock:
-            return len(self._processed_command_ids)
-    
-    def clear(self):
-        """
-        Clear all processed command IDs.
-        Useful for testing or reset scenarios.
-        """
-        with self._lock:
-            self._processed_command_ids.clear()
+            return False, "NAV_INVALID_COMMAND", "priority must be a string"
+        priority = priority.strip().lower()
+        if priority not in {"normal", "high", "emergency"}:
+            return False, "NAV_INVALID_COMMAND", "priority must be one of: normal, high, emergency"
 
+        # Either target_id OR x/y pose
+        target_id = command.get("target_id")
+        has_pose = ("x" in command and "y" in command)
+
+        if target_id is None and not has_pose:
+            return False, "NAV_INVALID_COMMAND", "missing target_id (or x/y pose)"
+
+        if target_id is not None:
+            if not isinstance(target_id, str) or not target_id.strip():
+                return False, "NAV_INVALID_COMMAND", "target_id must be a non-empty string"
+            target_id = target_id.strip()
+            # Conservative allowed set for MQTT topics and YAML keys
+            if not re.match(r"^[A-Za-z0-9_-]+$", target_id):
+                return False, "NAV_INVALID_COMMAND", "target_id contains invalid characters"
+
+            if position_registry is not None and hasattr(position_registry, "hasPosition"):
+                if not position_registry.hasPosition(target_id):
+                    return False, "NAV_INVALID_TARGET", f"unknown target_id: {target_id}"
+
+        if has_pose:
+            try:
+                float(command.get("x"))
+                float(command.get("y"))
+                if "theta" in command and command.get("theta") is not None:
+                    float(command.get("theta"))
+            except (TypeError, ValueError):
+                return False, "NAV_INVALID_COMMAND", "x/y/theta must be numeric"
+
+        # Optional ttl_seconds (canonical v2.0)
+        if "ttl_seconds" in command and command.get("ttl_seconds") is not None:
+            try:
+                ttl = float(command.get("ttl_seconds"))
+            except (TypeError, ValueError):
+                return False, "NAV_INVALID_COMMAND", "ttl_seconds must be numeric"
+            if ttl <= 0.0 or ttl > 86400.0:
+                return False, "NAV_INVALID_COMMAND", "ttl_seconds out of allowed range"
+
+        return True, "ok", None
+
+    @staticmethod
+    def _parse_schema_version(v: str) -> Tuple[Optional[int], Optional[int]]:
+        try:
+            parts = v.split(".")
+            if len(parts) != 2:
+                return None, None
+            major = int(parts[0])
+            minor = int(parts[1])
+            if major < 0 or minor < 0:
+                return None, None
+            return major, minor
+        except Exception:
+            return None, None
+
+    def _validate_cancel(self, command: Dict[str, Any]) -> Tuple[bool, str, Optional[str]]:
+        # task_id and reason are optional and ignored by the navigation layer.
+        if "reason" in command and command.get("reason") is not None:
+            if not isinstance(command.get("reason"), str):
+                return False, "NAV_INVALID_COMMAND", "reason must be a string"
+        if "task_id" in command and command.get("task_id") is not None:
+            if not isinstance(command.get("task_id"), str):
+                return False, "NAV_INVALID_COMMAND", "task_id must be a string"
+        return True, "ok", None
+
+    @staticmethod
+    def _is_iso8601(ts: str) -> bool:
+        """Accept a pragmatic subset of RFC3339/ISO8601."""
+        try:
+            # datetime.fromisoformat does not accept 'Z' prior to py3.11;
+            # normalize 'Z' to '+00:00'
+            t = ts.strip()
+            if t.endswith("Z"):
+                t = t[:-1] + "+00:00"
+            datetime.fromisoformat(t)
+            return True
+        except Exception:
+            return False
+
+    def _prune(self, now_s: float) -> None:
+        cutoff = now_s - self._ttl_seconds
+        with self._lock:
+            if not self._processed:
+                return
+            expired = [cid for cid, ts in self._processed.items() if ts < cutoff]
+            for cid in expired:
+                self._processed.pop(cid, None)

@@ -1,6 +1,0 @@
-image: /home/boris/ros2_ws/maps/symovo_map/map.pgm
-resolution: 0.05000000074505806
-origin: [-1.1358293787203273, -12.546595676588934, 0.0]
-negate: 0
-occupied_thresh: 0.65
-free_thresh: 0.196

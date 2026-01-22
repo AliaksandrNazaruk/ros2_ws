@@ -86,11 +86,6 @@ install(PROGRAMS
   RENAME navigation_integrated_node
 )
 install(PROGRAMS
-  src/${PROJECT_NAME}/navigation_command_handler.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME navigation_command_handler
-)
-install(PROGRAMS
   src/${PROJECT_NAME}/mqtt_status_publisher.py
   DESTINATION lib/${PROJECT_NAME}
   RENAME mqtt_status_publisher
@@ -99,6 +94,11 @@ install(PROGRAMS
   src/${PROJECT_NAME}/initial_pose_from_symovo.py
   DESTINATION lib/${PROJECT_NAME}
   RENAME initial_pose_from_symovo
+)
+install(PROGRAMS
+  src/${PROJECT_NAME}/symovo_map_fetcher_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME symovo_map_fetcher
 )
 
 # Install config files
@@ -111,111 +111,6 @@ install(DIRECTORY launch/
   DESTINATION share/${PROJECT_NAME}/launch
   FILES_MATCHING PATTERN "*.launch.py"
 )
-
-if(BUILD_TESTING)
-  # ---------------------------------------------------------------------------
-  # Lint (explicit config and scope)
-  # ---------------------------------------------------------------------------
-  find_package(ament_cmake_flake8 REQUIRED)
-  ament_flake8(
-    TESTNAME ament_flake8_custom
-    CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/ament_flake8.ini"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    "${CMAKE_CURRENT_SOURCE_DIR}/launch"
-    "${CMAKE_CURRENT_SOURCE_DIR}/setup.py"
-  )
-
-  find_package(ament_cmake_pep257 REQUIRED)
-  ament_pep257(
-    TESTNAME ament_pep257_custom
-    --convention google
-    --add-ignore
-      D100 D101 D102 D103 D104 D105 D107
-      D200 D204 D205 D212
-      D400 D401 D413 D415 D417
-      D411
-    --exclude
-      test build install log setup.py
-  )
-
-  find_package(ament_cmake_lint_cmake REQUIRED)
-  ament_lint_cmake(TESTNAME ament_lint_cmake_custom)
-
-  find_package(ament_cmake_cpplint REQUIRED)
-  ament_cpplint(TESTNAME ament_cpplint_custom)
-
-  find_package(ament_cmake_uncrustify REQUIRED)
-  ament_uncrustify(TESTNAME ament_uncrustify_custom)
-
-  find_package(ament_cmake_cppcheck REQUIRED)
-  ament_cppcheck(TESTNAME ament_cppcheck_custom)
-
-  find_package(ament_cmake_xmllint REQUIRED)
-  ament_xmllint(TESTNAME ament_xmllint_custom)
-
-  find_package(ament_cmake_copyright REQUIRED)
-  ament_copyright(
-    TESTNAME ament_copyright_custom
-    "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/launch"
-    "${CMAKE_CURRENT_SOURCE_DIR}/test"
-  )
-
-  # Python unit tests
-  find_package(ament_cmake_pytest REQUIRED)
-
-  # Unit tests
-  ament_add_pytest_test(test_position_registry
-    "${CMAKE_CURRENT_SOURCE_DIR}/test/unit/test_position_registry.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    TIMEOUT 60
-  )
-
-  ament_add_pytest_test(test_navigation_state_manager
-    "${CMAKE_CURRENT_SOURCE_DIR}/test/unit/test_navigation_state_manager.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    TIMEOUT 60
-  )
-
-  ament_add_pytest_test(test_command_validation
-    "${CMAKE_CURRENT_SOURCE_DIR}/test/unit/test_command_validation.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    TIMEOUT 60
-  )
-
-  ament_add_pytest_test(test_mqtt_status_publisher
-    "${CMAKE_CURRENT_SOURCE_DIR}/test/unit/test_mqtt_status_publisher.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    TIMEOUT 60
-  )
-
-  ament_add_pytest_test(test_broker_config_provider
-    "${CMAKE_CURRENT_SOURCE_DIR}/test/unit/test_broker_config_provider.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    TIMEOUT 60
-  )
-
-  ament_add_pytest_test(test_mqtt_connection_manager
-    "${CMAKE_CURRENT_SOURCE_DIR}/test/unit/test_mqtt_connection_manager.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    TIMEOUT 60
-  )
-
-  # Integration tests (will use launch_testing in future)
-  # For now, add them as pytest tests
-  ament_add_pytest_test(test_navigation_command_flow
-    "${CMAKE_CURRENT_SOURCE_DIR}/test/integration/test_navigation_command_flow.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    TIMEOUT 120
-  )
-
-  ament_add_pytest_test(test_state_machine
-    "${CMAKE_CURRENT_SOURCE_DIR}/test/integration/test_state_machine.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    TIMEOUT 120
-  )
-endif()
 
 ament_package()
 

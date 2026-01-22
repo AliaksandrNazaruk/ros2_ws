@@ -1,0 +1,56 @@
+# /etc/systemd/system/aehub-navigation-executor.service
+#
+# AE.HUB Navigation Executor Service
+# Business-layer Nav2 command executor (idempotency, rate-limit, cancel semantics).
+#
+# Notes:
+# - Uses a lock to prevent accidental double-starts (duplicate node names).
+# - Assumes ROS2 Jazzy and workspace at /home/boris/ros2_ws.
+# - EnvironmentFile entries are exported by systemd automatically.
+
+[Unit]
+Description=AE.HUB Navigation Executor (Nav2 business layer)
+Wants=network-online.target
+After=network-online.target
+
+# Transport dependency (optional but recommended)
+After=aehub-mqtt-transport.service
+Requires=aehub-mqtt-transport.service
+
+[Service]
+Type=simple
+User=boris
+Group=boris
+WorkingDirectory=/home/boris/ros2_ws
+
+# Central env file (API keys, robot_id, etc.)
+EnvironmentFile=/etc/aehub/aehub_stack.env
+
+# Prevent duplicates (most reliable on-robot protection)
+RuntimeDirectory=aehub
+RuntimeDirectoryMode=0755
+ExecStart=/usr/bin/flock -n /run/aehub/navigation_executor.lock /usr/bin/bash -lc '\
+  set -euo pipefail; \
+  source /opt/ros/jazzy/setup.bash; \
+  source /home/boris/ros2_ws/install/setup.bash; \
+  ros2 launch aehub_navigation_executor navigation_executor.launch.py\
+'
+
+Restart=on-failure
+RestartSec=2
+TimeoutStartSec=30
+TimeoutStopSec=10
+KillSignal=SIGINT
+
+# Security hardening (adjust ReadWritePaths if needed)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/home/boris/.ros /run/aehub
+CapabilityBoundingSet=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,27 @@
+# NavigationExecute.action
+#
+# Navigation Capability contract (Orchestration ↔ Capability).
+#
+# Conventions:
+# - `command_id` is required and is the idempotency key.
+# - `target_id` is optional metadata.
+# - `x`,`y`,`theta` MUST be provided as a concrete target pose in the `goal_frame`
+#   (position registry / symbolic targets are responsibility of the orchestration layer).
+
+# Goal
+string command_id
+string target_id
+float64 x
+float64 y
+float64 theta
+---
+# Result
+string command_id
+string status   # succeeded|canceled|aborted|error
+string reason   # optional, human-readable (non-empty on error)
+---
+# Feedback (optional)
+float32 progress_percent
+int32 eta_seconds
+float32 distance_remaining_m
+

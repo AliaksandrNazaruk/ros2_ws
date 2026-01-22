@@ -64,6 +64,7 @@ from rclpy.node import Node
 
 from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
 from nav2_msgs.action import NavigateToPose
+from nav_msgs.msg import Odometry
 
 from aehub_navigation.broker_config_provider import BrokerConfigProvider, BrokerConfig
 from aehub_navigation.command_rate_limiter import CommandRateLimiter
@@ -104,6 +105,10 @@ class NavigationIntegratedNode(Node):
         self.declare_parameter('stop_burst_rate_hz', 20.0)
         self.declare_parameter('duplicate_cache_ttl_s', 600.0)
 
+        # Pose source (for real vs sim): amcl_pose (default) or odom
+        self.declare_parameter('pose_source', 'amcl')  # 'amcl' | 'odom'
+        self.declare_parameter('pose_topic', 'amcl_pose')  # topic name without namespace
+
         # Symovo readiness check (existing params preserved)
         self.declare_parameter('symovo_endpoint', 'https://192.168.1.100')
         self.declare_parameter('amr_id', 0)
@@ -128,6 +133,8 @@ class NavigationIntegratedNode(Node):
         self.stop_burst_duration_s = float(self.get_parameter('stop_burst_duration_s').value)
         self.stop_burst_rate_hz = float(self.get_parameter('stop_burst_rate_hz').value)
         duplicate_cache_ttl_s = float(self.get_parameter('duplicate_cache_ttl_s').value)
+        self.pose_source = str(self.get_parameter('pose_source').value).strip().lower()
+        self.pose_topic = str(self.get_parameter('pose_topic').value).strip()
 
         # Symovo
         self.symovo_endpoint = str(self.get_parameter('symovo_endpoint').value).rstrip('/')
@@ -139,6 +146,14 @@ class NavigationIntegratedNode(Node):
         self.symovo_auto_enable_drive_mode = bool(self.get_parameter('symovo_auto_enable_drive_mode').value)
         self.symovo_client_cert_file = str(self.get_parameter('symovo_client_cert_file').value)
         self.symovo_client_key_file = str(self.get_parameter('symovo_client_key_file').value)
+
+        # Optional env overrides for MQTT connectivity (escape hatch)
+        # Useful when Config Service points to an unreachable port (e.g. 8883 blocked) but
+        # another listener (e.g. 1884) is available.
+        self._mqtt_broker_override = str(os.getenv('AEHUB_MQTT_BROKER_OVERRIDE', '')).strip()
+        self._mqtt_port_override = int(os.getenv('AEHUB_MQTT_PORT_OVERRIDE', '0') or '0')
+        self._mqtt_tls_override = str(os.getenv('AEHUB_MQTT_TLS_OVERRIDE', '')).strip().lower()  # 'true'|'false'|''
+        self._mqtt_tls_insecure_override = str(os.getenv('AEHUB_MQTT_TLS_INSECURE_OVERRIDE', '')).strip().lower()
 
         if not config_service_api_key:
             self.get_logger().warn('config_service_api_key is empty. If Config Service requires auth, broker fetch will fail.')
@@ -212,7 +227,11 @@ class NavigationIntegratedNode(Node):
         self._stop_remaining_msgs = 0
 
         # --- Subscriptions (pose) ---
-        self.create_subscription(PoseWithCovarianceStamped, 'amcl_pose', self._on_amcl_pose, 10)
+        if self.pose_source == 'odom':
+            self.create_subscription(Odometry, self.pose_topic or 'odom', self._on_odom_pose, 10)
+        else:
+            # Default: AMCL pose in map frame
+            self.create_subscription(PoseWithCovarianceStamped, self.pose_topic or 'amcl_pose', self._on_amcl_pose, 10)
 
         # --- MQTT command queue ---
         self._cmd_queue: queue.Queue[_QueuedCommand] = queue.Queue(maxsize=200)
@@ -241,6 +260,40 @@ class NavigationIntegratedNode(Node):
 
         # Start in idle
         self.state_manager.setState(NavigationState.IDLE)
+
+    def _apply_mqtt_overrides(self, cfg: BrokerConfig) -> BrokerConfig:
+        broker = cfg.broker
+        port = cfg.broker_port
+        use_tls = cfg.mqtt_use_tls
+        tls_insecure = cfg.mqtt_tls_insecure
+
+        changed = False
+        if self._mqtt_broker_override:
+            broker = self._mqtt_broker_override
+            changed = True
+        if self._mqtt_port_override > 0:
+            port = int(self._mqtt_port_override)
+            changed = True
+        if self._mqtt_tls_override in {'true', 'false'}:
+            use_tls = (self._mqtt_tls_override == 'true')
+            changed = True
+        if self._mqtt_tls_insecure_override in {'true', 'false'}:
+            tls_insecure = (self._mqtt_tls_insecure_override == 'true')
+            changed = True
+
+        if changed:
+            self.get_logger().warn(
+                f'Applying MQTT overrides: broker={broker}:{port} tls={use_tls} insecure={tls_insecure}'
+            )
+
+        return BrokerConfig(
+            broker=broker,
+            broker_port=port,
+            mqtt_user=cfg.mqtt_user,
+            mqtt_password=cfg.mqtt_password,
+            mqtt_use_tls=use_tls,
+            mqtt_tls_insecure=tls_insecure,
+        )
 
     # ---------------------------------------------------------------------
     # Single-instance guard
@@ -274,12 +327,22 @@ class NavigationIntegratedNode(Node):
                 'theta': float(yaw),
             }
 
+    def _on_odom_pose(self, msg: Odometry) -> None:
+        q = msg.pose.pose.orientation
+        yaw = self._yaw_from_quat(q.x, q.y, q.z, q.w)
+        with self._pose_lock:
+            self._current_pose = {
+                'x': float(msg.pose.pose.position.x),
+                'y': float(msg.pose.pose.position.y),
+                'theta': float(yaw),
+            }
+
     # ---------------------------------------------------------------------
     # MQTT connection & callbacks
     # ---------------------------------------------------------------------
 
     def _connect_mqtt(self, cfg: BrokerConfig) -> None:
-        ok = self.mqtt_manager.connect(cfg)
+        ok = self.mqtt_manager.connect(self._apply_mqtt_overrides(cfg))
         if not ok:
             self.get_logger().error('MQTT connect failed')
             return
@@ -292,7 +355,7 @@ class NavigationIntegratedNode(Node):
         # Called from polling thread.
         try:
             self.get_logger().info('Broker config changed, reconnecting MQTT...')
-            self.mqtt_manager.reconnect(new_cfg)
+            self.mqtt_manager.reconnect(self._apply_mqtt_overrides(new_cfg))
             base = f'aroc/robot/{self.robot_id}/commands'
             self.mqtt_manager.subscribe(f'{base}/navigateTo', qos=1)
             self.mqtt_manager.subscribe(f'{base}/cancel', qos=1)
