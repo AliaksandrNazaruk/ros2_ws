@@ -1,8 +1,8 @@
-# Clean Architecture (ROS 2 Jazzy) — AE.HUB Navigation Stack
+# Architecture (ROS 2 Jazzy) — HUBNavigation Stack
 
 ## Purpose
 
-This document fixes **system architecture, responsibilities, and ownership boundaries** for AE.HUB navigation stack on ROS 2 Jazzy.
+This document fixes **system architecture, responsibilities, and ownership boundaries** for HUBnavigation stack on ROS 2 Jazzy.
 
 Primary goals:
 - Eliminate “ROS monolith” responsibility mixing.
