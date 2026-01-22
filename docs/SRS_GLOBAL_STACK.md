@@ -1,4 +1,4 @@
-# SRS: Global Requirements for AE.HUB ROS 2 Stack (Architectural Contract)
+# SRS: Global Requirements for AE.HUB ROS 2 Stack
 Version: 0.1  
 Status: **Normative document (MUST/SHALL)**  
 Purpose: ensure agents/developers write code "like top-tier ROS 2 robotics engineers" and **do not violate responsibility boundaries**, ensuring **easy module replaceability**.
